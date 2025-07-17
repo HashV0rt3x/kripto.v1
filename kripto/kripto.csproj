@@ -8,8 +8,15 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  
   <ItemGroup>
     <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+    <PackageReference Include="Pkcs11Interop" Version="5.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Helpers\" />
+    <Folder Include="Resources\" />
   </ItemGroup>
 
 </Project>
