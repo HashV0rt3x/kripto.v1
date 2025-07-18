@@ -1,4 +1,5 @@
-﻿using kripto.Security;
+﻿using kripto.Helpers;
+using kripto.Security;
 using kripto.Windows;
 using System;
 using System.Text;
@@ -23,12 +24,14 @@ namespace kripto
         // Connection info properties
         private RutokenHelper? rutokenHelper;
         private string currentUser = "Unknown User";
+        private string token = string.Empty;
 
         public string IpAddress { get; private set; } = string.Empty;
         public string Password { get; private set; } = string.Empty;
 
         public MainWindow()
         {
+           // chatService.TestWebSocketAsync(token);
             try
             {
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor boshlandi");
@@ -63,6 +66,9 @@ namespace kripto
 
             // Title'ni yangilash
             this.Title = $"Kripto Messenger - Connected to {ipAddress}";
+
+
+            
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -170,6 +176,7 @@ namespace kripto
             try
             {
                 System.Diagnostics.Debug.WriteLine("SendButton_Click chaqirildi");
+                //AddMessageToUI("salom","admin",DateTime.UtcNow,true);
                 SendMessage();
             }
             catch (Exception ex)
@@ -323,7 +330,7 @@ namespace kripto
                     FontSize = 11,
                     Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
                     HorizontalAlignment = HorizontalAlignment.Right,
-                    Margin = new Thickness(0, 4, 0, 0)
+                    Margin = new Thickness(4)
                 };
 
                 messageStack.Children.Add(senderText);
@@ -490,6 +497,78 @@ namespace kripto
                 await SetFallbackUserAsync();
             }
         }
+
+
+        private void AddMessageToUI(string sender, string content, DateTime timestamp, bool isFromCurrentUser)
+        {
+            var messageContainer = new Border
+            {
+                Margin = new Thickness(0, 4, 0, 0),
+                MaxWidth = 350
+            };
+
+            var messageBorder = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(12, 8, 12, 8),
+            };
+
+            // Alignment va ranglar
+            if (isFromCurrentUser)
+            {
+                messageBorder.Background = new SolidColorBrush(Color.FromRgb(35, 134, 54)); // Yashil
+                messageContainer.HorizontalAlignment = HorizontalAlignment.Right;
+            }
+            else
+            {
+                messageBorder.Background = new SolidColorBrush(Color.FromRgb(33, 38, 45)); // To'q kulrang
+                messageContainer.HorizontalAlignment = HorizontalAlignment.Left;
+            }
+
+            var messagePanel = new StackPanel();
+
+            // Sender name (faqat boshqa userlar uchun)
+            if (!isFromCurrentUser)
+            {
+                var senderText = new TextBlock
+                {
+                    Text = sender,
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
+                    Margin = new Thickness(0, 0, 0, 3)
+                };
+                messagePanel.Children.Add(senderText);
+            }
+
+            // Message content
+            var contentText = new TextBlock
+            {
+                Text = content,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                FontSize = 13
+            };
+
+            // Time
+            var timeText = new TextBlock
+            {
+                Text = timestamp.ToString("HH:mm"),
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
+                Margin = new Thickness(0, 3, 0, 0),
+                HorizontalAlignment = isFromCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            messagePanel.Children.Add(contentText);
+            messagePanel.Children.Add(timeText);
+            messageBorder.Child = messagePanel;
+            messageContainer.Child = messageBorder;
+
+            MessagesPanel.Children.Add(messageContainer);
+            MessagesScrollViewer.ScrollToEnd();
+        }
+
 
         private async Task SetFallbackUserAsync()
         {

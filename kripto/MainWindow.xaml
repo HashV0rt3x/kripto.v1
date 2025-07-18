@@ -170,21 +170,56 @@
                                 <TextBlock Text="⋮" Foreground="#8b949e"/>
                             </Button>
                         </StackPanel>
+
+
+                        <Button 
+                                    Background="#238636"
+                                    BorderThickness="0"
+                                    Foreground="White"
+                                    Width="44"
+                                    Height="44"
+                                    Margin="12,0,0,0"
+                                    FontSize="16"
+                                    Click="SendButton_Click"
+                                    IsEnabled="True"
+                                    x:Name="callButton">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#2ea043"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Background" Value="#21262d"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Content" Value="➤"/>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </DockPanel>
                 </Border>
 
-                <!-- Messages Area -->
                 <ScrollViewer x:Name="MessagesScrollViewer"
                               Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               Background="#0d1117"
                               Padding="24,16,24,16">
                     <StackPanel x:Name="MessagesPanel">
-                        <!-- Welcome message will be added programmatically -->
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Message Input -->
                 <Border Grid.Row="2" 
                         Background="#161b22"
                         Padding="24,16,24,16"
@@ -192,14 +227,56 @@
                         BorderThickness="0,1,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0"
+                        <Button Grid.Column="0"
+                            Background="#238636"
+                            BorderThickness="0"
+                            Foreground="White"
+                            Width="44"
+                            Height="44"
+                            Margin="12,0,0,0"
+                            FontSize="16"
+                            Click="SendButton_Click"
+                            IsEnabled="True"
+                            x:Name="uplodeButton">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#2ea043"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Background" Value="#21262d"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Content" Value="➤"/>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+
+
+
+                        <Border Grid.Column="1"
                                 Background="#21262d"
                                 CornerRadius="8"
                                 BorderBrush="#30363d"
+                                Margin="10,0,0,0"
                                 BorderThickness="1">
                             <Grid>
                                 <TextBox x:Name="MessageTextBox"
@@ -225,7 +302,7 @@
                             </Grid>
                         </Border>
 
-                        <Button Grid.Column="1"
+                        <Button Grid.Column="2"
                                 Background="#238636"
                                 BorderThickness="0"
                                 Foreground="White"
