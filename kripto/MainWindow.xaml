@@ -8,7 +8,6 @@
         Title="Kripto Messenger" Height="600" Width="800"
         WindowStartupLocation="CenterScreen"
         MinWidth="600" MinHeight="400">
-    <!-- Style="{StaticResource MaterialDesignWindow}" ni olib tashladik -->
 
     <Grid>
         <Grid.RowDefinitions>
@@ -17,25 +16,26 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Header -->
         <Border Background="#0d1117" 
-        Grid.Row="0"
-        Padding="20,16"
-        BorderBrush="#21262d"
-        BorderThickness="0,0,0,1">
+                Grid.Row="0"
+                Padding="20,16,20,16"
+                BorderBrush="#21262d"
+                BorderThickness="0,0,0,1">
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <TextBlock Text="Kripto" 
-                       VerticalAlignment="Center"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#f0f6fc"/>
+                               VerticalAlignment="Center"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#f0f6fc"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <!-- Connection status -->
                     <Border Background="#1f2937"
                             CornerRadius="4"
-                            Padding="8,4"
+                            Padding="8,4,8,4"
                             Margin="0,0,12,0">
                         <TextBlock Text="🔗 Connected" 
                                    FontSize="11"
@@ -45,6 +45,7 @@
             </DockPanel>
         </Border>
 
+        <!-- Main Content -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="280"/>
@@ -52,9 +53,10 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Sidebar -->
             <Border Grid.Column="0"
-                Background="#161b22"
-                Padding="0">
+                    Background="#161b22"
+                    Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -64,9 +66,9 @@
 
                     <!-- Sidebar Header -->
                     <Border Grid.Row="0"
-                        Padding="20,16"
-                        BorderBrush="#21262d"
-                        BorderThickness="0,0,0,1">
+                            Padding="20,16,20,16"
+                            BorderBrush="#21262d"
+                            BorderThickness="0,0,0,1">
                         <TextBlock Text="Online Users" 
                                    FontSize="14"
                                    FontWeight="SemiBold"
@@ -76,11 +78,11 @@
                     <!-- Users List -->
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="UsersPanel" Margin="0,8">
+                        <StackPanel x:Name="UsersPanel" Margin="0,8,0,8">
                             <!-- Sample users -->
                             <Border Background="#21262d" 
-                                    Margin="12,4"
-                                    Padding="12,8"
+                                    Margin="12,4,12,4"
+                                    Padding="12,8,12,8"
                                     CornerRadius="6"
                                     Cursor="Hand">
                                 <StackPanel Orientation="Horizontal">
@@ -119,52 +121,52 @@
 
                 <!-- Chat Header -->
                 <Border Grid.Row="0"
-                Background="#161b22"
-                Padding="24,16"
-                BorderBrush="#21262d"
-                BorderThickness="0,0,0,1">
+                        Background="#161b22"
+                        Padding="24,16,24,16"
+                        BorderBrush="#21262d"
+                        BorderThickness="0,0,0,1">
                     <DockPanel>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                             <Border Width="36" 
-                            Height="36"
-                            CornerRadius="18"
-                            Background="#238636"
-                            Margin="0,0,12,0">
+                                    Height="36"
+                                    CornerRadius="18"
+                                    Background="#238636"
+                                    Margin="0,0,12,0">
                                 <TextBlock x:Name="ChatAvatarText"
-                                   Text="?"
-                                   FontSize="16"
-                                   FontWeight="Bold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
+                                           Text="?"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock x:Name="ChatHeaderTextBlock"
-                                   Text="Select a conversation"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="#f0f6fc"/>
+                                           Text="Select a conversation"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#f0f6fc"/>
                                 <TextBlock x:Name="ChatStatusText"
-                                   Text="Click on a user to start chatting"
-                                   FontSize="12"
-                                   Foreground="#8b949e"/>
+                                           Text="Click on a user to start chatting"
+                                           FontSize="12"
+                                           Foreground="#8b949e"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                             <Border Background="#1f2937"
-                            CornerRadius="4"
-                            Padding="8,4"
-                            Margin="0,0,12,0">
+                                    CornerRadius="4"
+                                    Padding="8,4,8,4"
+                                    Margin="0,0,12,0">
                                 <TextBlock Text="🔒 E2E" 
-                                   FontSize="11"
-                                   Foreground="#10b981"/>
+                                           FontSize="11"
+                                           Foreground="#10b981"/>
                             </Border>
                             <Button Background="Transparent"
-                            BorderThickness="0"
-                            Width="32"
-                            Height="32"
-                            FontSize="16">
+                                    BorderThickness="0"
+                                    Width="32"
+                                    Height="32"
+                                    FontSize="16">
                                 <TextBlock Text="⋮" Foreground="#8b949e"/>
                             </Button>
                         </StackPanel>
@@ -173,31 +175,21 @@
 
                 <!-- Messages Area -->
                 <ScrollViewer x:Name="MessagesScrollViewer"
-                      Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
-                      Background="#0d1117"
-                      Padding="24,16">
+                              Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              Background="#0d1117"
+                              Padding="24,16,24,16">
                     <StackPanel x:Name="MessagesPanel">
-                        <!-- Welcome message -->
-                        <Border Background="#1f2937"
-                                CornerRadius="8"
-                                Padding="16,12"
-                                HorizontalAlignment="Center"
-                                Margin="0,20">
-                            <TextBlock Text="Welcome to Kripto Messenger! 🔐"
-                                       FontSize="14"
-                                       Foreground="#f0f6fc"
-                                       HorizontalAlignment="Center"/>
-                        </Border>
+                        <!-- Welcome message will be added programmatically -->
                     </StackPanel>
                 </ScrollViewer>
 
                 <!-- Message Input -->
                 <Border Grid.Row="2" 
-                Background="#161b22"
-                Padding="24,16"
-                BorderBrush="#21262d"
-                BorderThickness="0,1,0,0">
+                        Background="#161b22"
+                        Padding="24,16,24,16"
+                        BorderBrush="#21262d"
+                        BorderThickness="0,1,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -205,54 +197,54 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0"
-                        Background="#21262d"
-                        CornerRadius="8"
-                        BorderBrush="#30363d"
-                        BorderThickness="1">
+                                Background="#21262d"
+                                CornerRadius="8"
+                                BorderBrush="#30363d"
+                                BorderThickness="1">
                             <Grid>
                                 <TextBox x:Name="MessageTextBox"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Foreground="#f0f6fc"
-                                 CaretBrush="#f0f6fc"
-                                 Height="44"
-                                 Padding="16,12"
-                                 FontSize="14"
-                                 VerticalContentAlignment="Center"
-                                 KeyDown="MessageTextBox_KeyDown"
-                                 IsEnabled="True"
-                                 GotFocus="MessageTextBox_GotFocus"
-                                 LostFocus="MessageTextBox_LostFocus"/>
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="#f0f6fc"
+                                         CaretBrush="#f0f6fc"
+                                         Height="44"
+                                         Padding="16,12,16,12"
+                                         FontSize="14"
+                                         VerticalContentAlignment="Center"
+                                         KeyDown="MessageTextBox_KeyDown"
+                                         IsEnabled="True"
+                                         GotFocus="MessageTextBox_GotFocus"
+                                         LostFocus="MessageTextBox_LostFocus"/>
                                 <TextBlock x:Name="PlaceholderText"
-                                   Text="Type a message..."
-                                   Foreground="#6e7681"
-                                   FontSize="14"
-                                   Margin="16,12"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"/>
+                                           Text="Type a message..."
+                                           Foreground="#6e7681"
+                                           FontSize="14"
+                                           Margin="16,12,16,12"
+                                           VerticalAlignment="Center"
+                                           IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
 
                         <Button Grid.Column="1"
-                        Background="#238636"
-                        BorderThickness="0"
-                        Foreground="White"
-                        Width="44"
-                        Height="44"
-                        Margin="12,0,0,0"
-                        FontSize="16"
-                        Click="SendButton_Click"
-                        IsEnabled="True"
-                        x:Name="SendButton">
+                                Background="#238636"
+                                BorderThickness="0"
+                                Foreground="White"
+                                Width="44"
+                                Height="44"
+                                Margin="12,0,0,0"
+                                FontSize="16"
+                                Click="SendButton_Click"
+                                IsEnabled="True"
+                                x:Name="SendButton">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="8">
+                                                        CornerRadius="8">
                                                     <ContentPresenter HorizontalAlignment="Center" 
-                                                              VerticalAlignment="Center"/>
+                                                                      VerticalAlignment="Center"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">

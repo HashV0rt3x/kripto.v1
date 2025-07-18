@@ -31,15 +31,11 @@ namespace kripto.Security
     public class RutokenHelper : IDisposable
     {
         private IPkcs11Library? pkcs11Library;
-        private const string RUTOKEN_MODULE = @"C:\Windows\System32\rtPKCS11ECP.dll";
-        //private const string PIN = "12345678";
-
-
         private ISession? session;
         private bool isInitialized = false;
         private bool isDisposed = false;
 
-        // RuToken library path (Windows)
+        // RuToken library paths (Windows)
         private static readonly string[] PossibleLibraryPaths =
         [
             @"C:\Windows\System32\rtpkcs11ecp.dll",
@@ -49,22 +45,28 @@ namespace kripto.Security
         ];
 
         /// <summary>
-        /// RuToken'ni ishga tushirish
-        /// </summary>
-        /// <summary>
         /// Rutoken'ni ishga tushirish
         /// </summary>
-        public bool Initialize(string PIN)
+        public bool Initialize(string pin)
         {
             try
             {
                 if (isInitialized)
                     return true;
 
+                if (string.IsNullOrEmpty(pin))
+                {
+                    throw new ArgumentException("PIN bo'sh bo'lishi mumkin emas", nameof(pin));
+                }
+
+                // Library path'ni topish
+                string libraryPath = FindLibraryPath();
+                System.Diagnostics.Debug.WriteLine($"Using RuToken library: {libraryPath}");
+
                 // PKCS#11 kutubxonasini yuklash
                 pkcs11Library = new Pkcs11InteropFactories().Pkcs11LibraryFactory.LoadPkcs11Library(
                     new Pkcs11InteropFactories(),
-                    RUTOKEN_MODULE,
+                    libraryPath,
                     AppType.MultiThreaded);
 
                 // Slotlarni qidirish
@@ -74,39 +76,30 @@ namespace kripto.Security
                     throw new Exception("Hech qanday token topilmadi. Token ulangan va ishlayotganini tekshiring.");
                 }
 
-                // Sessiya ochish
+                GetAllTokens();
+
+                // Birinchi mavjud slotdan sessiya ochish
                 var slot = slots[0];
                 session = slot.OpenSession(SessionType.ReadWrite);
 
                 // PIN bilan kirish
-                session.Login(CKU.CKU_USER, PIN);
+                session.Login(CKU.CKU_USER, pin);
 
                 isInitialized = true;
+                System.Diagnostics.Debug.WriteLine("✅ RuToken muvaffaqiyatli ishga tushirildi");
                 return true;
             }
             catch (Pkcs11Exception pkcs11Ex)
             {
-                string errorMessage = $"PKCS#11 xatosi: {pkcs11Ex.Message}";
-
-                switch (pkcs11Ex.RV)
-                {
-                    case CKR.CKR_PIN_INCORRECT:
-                        errorMessage += "\nPIN noto'g'ri. Default PIN: 12345678";
-                        break;
-                    case CKR.CKR_TOKEN_NOT_PRESENT:
-                        errorMessage += "\nToken ulanmagan yoki tanilmagan";
-                        break;
-                    case CKR.CKR_PIN_LOCKED:
-                        errorMessage += "\nPIN bloklangan. Adminstratorga murojaat qiling";
-                        break;
-                }
-
+                string errorMessage = GetPkcs11ErrorMessage(pkcs11Ex);
+                System.Diagnostics.Debug.WriteLine($"❌ PKCS#11 xatosi: {errorMessage}");
                 throw new Exception(errorMessage);
             }
             catch (Exception ex)
             {
-
-                throw new Exception($"Rutoken'ni ishga tushirishda xatolik: {ex.Message}");
+                string errorMessage = $"Rutoken'ni ishga tushirishda xatolik: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"❌ {errorMessage}");
+                throw new Exception(errorMessage);
             }
         }
 
@@ -124,7 +117,31 @@ namespace kripto.Security
                 }
             }
 
-            throw new Exception("RuToken library topilmadi. Iltimos, RuToken driver'ni o'rnating.");
+            throw new Exception("RuToken library topilmadi. Iltimos, RuToken driver'ni o'rnating.\n" +
+                              "Quyidagi path'lardan birida library bo'lishi kerak:\n" +
+                              string.Join("\n", PossibleLibraryPaths));
+        }
+
+        /// <summary>
+        /// PKCS#11 xatolik xabarlarini tushunarli qilish
+        /// </summary>
+        private static string GetPkcs11ErrorMessage(Pkcs11Exception pkcs11Ex)
+        {
+            string baseMessage = $"PKCS#11 xatosi: {pkcs11Ex.Message}";
+
+            string additionalInfo = pkcs11Ex.RV switch
+            {
+                CKR.CKR_PIN_INCORRECT => "\nPIN noto'g'ri. Default PIN: 12345678",
+                CKR.CKR_TOKEN_NOT_PRESENT => "\nToken ulanmagan yoki tanilmagan",
+                CKR.CKR_PIN_LOCKED => "\nPIN bloklangan. Administrator bilan bog'laning",
+                CKR.CKR_USER_NOT_LOGGED_IN => "\nFoydalanuvchi tizimga kirmagan",
+                CKR.CKR_SESSION_CLOSED => "\nSession yopilgan",
+                CKR.CKR_DEVICE_ERROR => "\nQurilma xatosi",
+                CKR.CKR_CRYPTOKI_NOT_INITIALIZED => "\nCryptoki ishga tushirilmagan",
+                _ => ""
+            };
+
+            return baseMessage + additionalInfo;
         }
 
         /// <summary>
@@ -136,15 +153,12 @@ namespace kripto.Security
 
             try
             {
-                if (!isInitialized || session == null)
-                {
-                    throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
-                }
+                EnsureInitialized();
 
                 // Custom tokenlarni qidirish
                 var searchTemplate = new List<IObjectAttribute>
                 {
-                    session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
+                    session!.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_TOKEN, true)
                 };
 
@@ -155,25 +169,11 @@ namespace kripto.Security
                 {
                     try
                     {
-                        var attributes = session.GetAttributeValue(obj, new List<CKA>
+                        var tokenData = ReadTokenData(obj);
+                        if (tokenData != null)
                         {
-                            CKA.CKA_LABEL,
-                            CKA.CKA_VALUE,
-                            CKA.CKA_PRIVATE,
-                            CKA.CKA_MODIFIABLE
-                        });
-
-                        var tokenData = new TokenData
-                        {
-                            Label = attributes[0].GetValueAsString() ?? "Unnamed",
-                            Data = Encoding.UTF8.GetString(attributes[1].GetValueAsByteArray() ?? []),
-                            IsPrivate = attributes[2].GetValueAsBool(),
-                            IsModifiable = attributes[3].GetValueAsBool(),
-                            SizeBytes = attributes[1].GetValueAsByteArray()?.Length ?? 0,
-                            ObjectId = obj.ObjectId
-                        };
-
-                        tokens.Add(tokenData);
+                            tokens.Add(tokenData);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -200,15 +200,17 @@ namespace kripto.Security
 
             try
             {
-                if (!isInitialized || session == null)
+                EnsureInitialized();
+
+                if (string.IsNullOrEmpty(label))
                 {
-                    throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
+                    throw new ArgumentException("Label bo'sh bo'lishi mumkin emas", nameof(label));
                 }
 
                 // Label bo'yicha qidirish
                 var searchTemplate = new List<IObjectAttribute>
                 {
-                    session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
+                    session!.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_LABEL, label)
                 };
 
@@ -220,8 +222,28 @@ namespace kripto.Security
                 }
 
                 // Birinchi topilgan tokenni qaytarish
-                var firstObject = foundObjects[0];
-                var attributes = session.GetAttributeValue(firstObject, new List<CKA>
+                var tokenData = ReadTokenData(foundObjects[0]);
+                if (tokenData == null)
+                {
+                    throw new Exception($"'{label}' token ma'lumotlarini o'qib bo'lmadi!");
+                }
+
+                return tokenData;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Token qidirishda xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Token ma'lumotlarini o'qish
+        /// </summary>
+        private TokenData? ReadTokenData(IObjectHandle objectHandle)
+        {
+            try
+            {
+                var attributes = session!.GetAttributeValue(objectHandle, new List<CKA>
                 {
                     CKA.CKA_LABEL,
                     CKA.CKA_VALUE,
@@ -236,14 +258,15 @@ namespace kripto.Security
                     IsPrivate = attributes[2].GetValueAsBool(),
                     IsModifiable = attributes[3].GetValueAsBool(),
                     SizeBytes = attributes[1].GetValueAsByteArray()?.Length ?? 0,
-                    ObjectId = firstObject.ObjectId
+                    ObjectId = objectHandle.ObjectId
                 };
 
                 return tokenData;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Token qidirishda xatolik: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ReadTokenData xatolik: {ex.Message}");
+                return null;
             }
         }
 
@@ -256,16 +279,23 @@ namespace kripto.Security
 
             try
             {
-                if (!isInitialized || session == null)
+                EnsureInitialized();
+
+                if (string.IsNullOrEmpty(label))
                 {
-                    throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
+                    throw new ArgumentException("Label bo'sh bo'lishi mumkin emas", nameof(label));
+                }
+
+                if (string.IsNullOrEmpty(data))
+                {
+                    throw new ArgumentException("Data bo'sh bo'lishi mumkin emas", nameof(data));
                 }
 
                 var dataBytes = Encoding.UTF8.GetBytes(data);
 
                 var objectAttributes = new List<IObjectAttribute>
                 {
-                    session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
+                    session!.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_TOKEN, true),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_PRIVATE, false),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_MODIFIABLE, true),
@@ -292,15 +322,22 @@ namespace kripto.Security
 
             try
             {
-                if (!isInitialized || session == null)
+                EnsureInitialized();
+
+                if (string.IsNullOrEmpty(label))
                 {
-                    throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
+                    throw new ArgumentException("Label bo'sh bo'lishi mumkin emas", nameof(label));
+                }
+
+                if (string.IsNullOrEmpty(newData))
+                {
+                    throw new ArgumentException("NewData bo'sh bo'lishi mumkin emas", nameof(newData));
                 }
 
                 // Tokenni topish
                 var searchTemplate = new List<IObjectAttribute>
                 {
-                    session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
+                    session!.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_LABEL, label)
                 };
 
@@ -339,15 +376,17 @@ namespace kripto.Security
 
             try
             {
-                if (!isInitialized || session == null)
+                EnsureInitialized();
+
+                if (string.IsNullOrEmpty(label))
                 {
-                    throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
+                    throw new ArgumentException("Label bo'sh bo'lishi mumkin emas", nameof(label));
                 }
 
                 // Tokenni topish
                 var searchTemplate = new List<IObjectAttribute>
                 {
-                    session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
+                    session!.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_DATA),
                     session.Factories.ObjectAttributeFactory.Create(CKA.CKA_LABEL, label)
                 };
 
@@ -441,6 +480,17 @@ namespace kripto.Security
             catch (Exception ex)
             {
                 return $"❌ Session ma'lumotlarini olishda xatolik: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Initialization holatini tekshirish
+        /// </summary>
+        private void EnsureInitialized()
+        {
+            if (!isInitialized || session == null)
+            {
+                throw new Exception("RuToken ishga tushirilmagan. Avval Initialize() metodini chaqiring.");
             }
         }
 

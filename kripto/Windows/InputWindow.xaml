@@ -11,27 +11,24 @@
         WindowStyle="None"
         AllowsTransparency="True"
         ResizeMode="NoResize">
-    <Border
-        CornerRadius="10"
-        Background="BurlyWood"
-        >
+    <Border CornerRadius="10" Background="BurlyWood">
         <Grid>
-            <StackPanel Margin="20">
+            <StackPanel Margin="20,20,20,20">
+                <!-- LOGIN Header -->
+                <Label Content="LOGIN"
+                       HorizontalAlignment="Center"
+                       FontSize="24"
+                       Margin="0,20,0,20"/>
+
                 <!-- IP Address Input -->
-                <Label
-                    Content="LOGIN"
-                    HorizontalAlignment="Center"
-                    FontSize="24"
-                    Margin="0 20 0 20"
-                    />
-                <Label Content="IP Address:" FontWeight="Bold" Margin="0 5 0 0"/>
-                <Border
-                    Background="#FFF"
-                    CornerRadius="10"
-                    Margin="10 0"
-                    >
+                <Label Content="IP Address:" 
+                       FontWeight="Bold" 
+                       Margin="0,5,0,0"/>
+                <Border Background="#FFF"
+                        CornerRadius="10"
+                        Margin="10,0,10,0">
                     <TextBox x:Name="IpAddressTextBox"
-                             Padding="5"
+                             Padding="5,5,5,5"
                              Height="30"
                              Text="127.0.0.1"
                              FontFamily="Dubai"
@@ -41,31 +38,36 @@
                              ToolTip="Enter IP address (e.g., 192.168.1.1)"
                              PreviewTextInput="IpAddressTextBox_PreviewTextInput"
                              PreviewKeyDown="IpAddressTextBox_PreviewKeyDown"
-                             TextChanged="IpAddressTextBox_TextChanged" Width="116"/>
+                             TextChanged="IpAddressTextBox_TextChanged" 
+                             Width="116"/>
                 </Border>
 
                 <!-- Password Input -->
-                <Label Content="Password:" FontWeight="Bold" Margin="0 5 0 0"/>
-                <Border
-                    Background="#FFF"
-                    CornerRadius="10"
-                    Margin="10 0 "
-                    >
+                <Label Content="Password:" 
+                       FontWeight="Bold" 
+                       Margin="0,5,0,0"/>
+                <Border Background="#FFF"
+                        CornerRadius="10"
+                        Margin="10,0,10,0">
                     <PasswordBox x:Name="PasswordBox" 
-                     HorizontalAlignment="Center"
-                     Margin="0 0 0 0"
-                     Padding="5"
-                     Height="30"
-                     ToolTip="Enter your password" Width="206"/>
+                                 HorizontalAlignment="Center"
+                                 
+                                 Margin="0,0,0,0"
+                                 Padding="5,5,5,5"
+                                 Height="30"
+                                 ToolTip="Enter your password" 
+                                 Width="206"/>
                 </Border>
-                
+
                 <!-- Buttons -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0 15 0 0">
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Center" 
+                            Margin="0,15,0,0">
                     <Button Content="Connect" 
                             BorderBrush="Transparent"
                             x:Name="ConnectButton"
                             Click="Submit_Click" 
-                            Margin="0 0 10 0"
+                            Margin="0,0,10,0"
                             Width="80"
                             Height="35"
                             Background="#FF4CAF50"
@@ -86,5 +88,4 @@
             </StackPanel>
         </Grid>
     </Border>
-
 </Window>
