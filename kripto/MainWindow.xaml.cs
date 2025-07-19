@@ -606,7 +606,7 @@ namespace kripto
                 AddMessageToChat(messageContent, currentUser, true);
 
                 // Server ga yuborish
-                bool sent = await chatService.SendMessageAsync(selectedChatUser, messageContent);
+                bool sent = await chatService.SendMessageAsync("user1", messageContent);
 
                 if (!sent)
                 {

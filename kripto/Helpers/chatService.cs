@@ -20,7 +20,7 @@ namespace kripto.Helpers
 
         public string ServerIP { get; set; } = "37.27.216.90";
         public string ServerPort { get; set; } = "8099";
-        public string Username { get; set; } = "user1";
+        public string Username { get; set; } = "admin";
         public string? AuthToken { get; private set; }
 
         // Events
@@ -51,8 +51,8 @@ namespace kripto.Helpers
 
                 var loginRequest = new
                 {
-                    username = Username,
-                    password = password
+                    username = "admin",
+                    password = "admin123"
                 };
 
                 var json = JsonSerializer.Serialize(loginRequest);
