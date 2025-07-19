@@ -11,6 +11,7 @@
   
   <ItemGroup>
     <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="9.0.7" />
     <PackageReference Include="Pkcs11Interop" Version="5.3.0" />
   </ItemGroup>
 

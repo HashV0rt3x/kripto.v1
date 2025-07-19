@@ -393,15 +393,15 @@ namespace kripto
         {
             try
             {
-                if (UsersPanel == null) return;
+                //if (UsersPanel == null) return;
 
-                UsersPanel.Children.Clear();
+                //UsersPanel.Children.Clear();
 
-                foreach (string user in onlineUsers)
-                {
-                    var userButton = CreateUserButton(user);
-                    UsersPanel.Children.Add(userButton);
-                }
+                //foreach (string user in onlineUsers)
+                //{
+                //    var userButton = CreateUserButton(user);
+                //    UsersPanel.Children.Add(userButton);
+                //}
 
                 System.Diagnostics.Debug.WriteLine($"Users panel yangilandi: {onlineUsers.Count} users");
             }
@@ -703,15 +703,15 @@ namespace kripto
                     MessageTextBox.IsEnabled = hasSelectedUser;
                 }
 
-                if (uplodeButton != null)
-                {
-                    uplodeButton.IsEnabled = isConnected && hasSelectedUser;
-                }
+                //if (uplodeButton != null)
+                //{
+                //    uplodeButton.IsEnabled = isConnected && hasSelectedUser;
+                //}
 
-                if (callButton != null)
-                {
-                    callButton.IsEnabled = isConnected && hasSelectedUser;
-                }
+                //if (callButton != null)
+                //{
+                //    callButton.IsEnabled = isConnected && hasSelectedUser;
+                //}
             }
             catch (Exception ex)
             {
