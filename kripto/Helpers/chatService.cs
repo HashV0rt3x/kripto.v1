@@ -46,7 +46,7 @@ namespace kripto.Helpers
             /// <summary>
             /// Auth token olish
             /// </summary>
-            public async Task<bool> AuthenticateAsync(string password)
+            public async Task<string?> AuthenticateAsync(string password)
             {
                 try
                 {
@@ -81,20 +81,20 @@ namespace kripto.Helpers
                         {
                             AuthToken = loginResponse.Token;
                             System.Diagnostics.Debug.WriteLine("✅ Authentication muvaffaqiyatli");
-                            return true;
+                            return AuthToken;
                         }
                     }
 
                     var errorContent = await response.Content.ReadAsStringAsync();
                     System.Diagnostics.Debug.WriteLine($"❌ Auth failed: {errorContent}");
                     ErrorOccurred?.Invoke($"Authentication failed: {errorContent}");
-                    return false;
+                    return null;
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"❌ Auth error: {ex.Message}");
                     ErrorOccurred?.Invoke($"Authentication error: {ex.Message}");
-                    return false;
+                    return null;
                 }
             }
 

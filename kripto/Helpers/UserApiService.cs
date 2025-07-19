@@ -1,4 +1,6 @@
 ﻿// Services/UserApiService.cs
+using kripto.Helpers;
+using kripto.Models;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -6,7 +8,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using kripto.Models;
 
 namespace kripto.Services
 {
@@ -17,13 +18,15 @@ namespace kripto.Services
         private string? _authToken;
         private bool _disposed = false;
 
-        public UserApiService(string baseUrl)
+        public UserApiService(string baseUrl,string authToken)
         {
+            _authToken = authToken;
             _baseUrl = baseUrl.TrimEnd('/');
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Accept.Clear();
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
+            SetAuthToken(authToken);
         }
 
         /// <summary>
@@ -31,7 +34,7 @@ namespace kripto.Services
         /// </summary>
         public void SetAuthToken(string token)
         {
-            _authToken = token;
+            //_authToken = token;
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             System.Diagnostics.Debug.WriteLine($"API token o'rnatildi: {token.Substring(0, Math.Min(10, token.Length))}...");
         }
@@ -102,12 +105,20 @@ namespace kripto.Services
         }
 
         /// <summary>
-        /// Barcha userlarni olish (pagination bilan)
+        /// Barcha foydalanuvchilarni olish (pagination va qidiruv bilan)
         /// </summary>
         public async Task<UserListResponse> GetAllUsersAsync(string? search = null, int page = 1, int pageSize = 20)
         {
             try
             {
+                //// Token borligini tekshiramiz
+                //if (string.IsNullOrWhiteSpace(_authToken))
+                //    throw new InvalidOperationException("Avtorizatsiya tokeni mavjud emas.");
+
+                // Tokenni headerga qo‘shamiz
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlNmU4YWRlZS05N2EzLTQ5NzktYTEwOC02MDBmYWM0OTkyZDciLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjAxOTgyMGUzLTE5MTgtN2JhOC1iYjkyLTYyODZhZjUxM2U5ZiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJzdHJpbmciLCJVc2VySWQiOiIwMTk4MjBlMy0xOTE4LTdiYTgtYmI5Mi02Mjg2YWY1MTNlOWYiLCJVc2VyTmFtZSI6InN0cmluZyIsImV4cCI6MTc1MzA4NzM0OCwiaXNzIjoiQmFjayIsImF1ZCI6ImtyaXB0by5VeiJ9.fJvXKfTj3WridFkmF0fxJDvCnp2bJlFZ4SCjNTenO6E");
+
+                // Query parametrlari
                 var queryParams = new List<string>();
 
                 if (!string.IsNullOrEmpty(search))
@@ -117,15 +128,16 @@ namespace kripto.Services
                 queryParams.Add($"pageSize={pageSize}");
 
                 var query = string.Join("&", queryParams);
-                var url = $"{_baseUrl}/api/Users?{query}";
+                var url = $"http://localhost:5530/api/Users?";
 
-                System.Diagnostics.Debug.WriteLine($"Getting all users: {url}");
-
+                // Foydalanuvchilarni olish so‘rovi
                 var response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
+
+                    // JSON dan modelga deserialize qilish
                     var userListResponse = JsonSerializer.Deserialize<UserListResponse>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
@@ -135,16 +147,21 @@ namespace kripto.Services
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"GetAllUsers API error: {response.StatusCode} - {response.ReasonPhrase}");
+                    // Xatolik bo‘lsa log qilamiz
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"❌ GetAllUsers API xatolik: {(int)response.StatusCode} - {response.ReasonPhrase} | {errorContent}");
+
                     return new UserListResponse();
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"GetAllUsersAsync xatolik: {ex.Message}");
+                // Istisno holatlarini log qilamiz
+                System.Diagnostics.Debug.WriteLine($"❌ GetAllUsersAsync xatolik: {ex.Message}");
                 return new UserListResponse();
             }
         }
+
 
         /// <summary>
         /// Online userlar sonini olish

@@ -34,6 +34,8 @@ namespace kripto
 
         // Properties
         private string currentUser = "admin";
+        private string token = "";
+        private string authtoken = "";
         private string selectedChatUser = string.Empty;
         private List<string> onlineUsers = new List<string>();
         private List<OnlineUserDto> onlineUsersFromApi = new List<OnlineUserDto>();
@@ -80,16 +82,18 @@ namespace kripto
             this.IpAddress = ipAddress;
             this.Password = password;
 
+            RuToken.InitializeRutoken();
+            var res = RuToken.ListAllTokens();
+            this.currentUser = RuToken.ReadCustomToken("user");
+            this.token = RuToken.ReadCustomToken("kripto");
+
+
             System.Diagnostics.Debug.WriteLine($"Connection info set: {ipAddress}, {password.Length} chars");
             this.Title = $"Kripto Messenger - Connecting to {ipAddress}";
 
+
             // UserApiService'ni yaratish
             InitializeUserApiService();
-
-            RuToken.InitializeRutoken();
-            RuToken.GetTokenStatus();
-
-
         }
 
         /// <summary>
@@ -103,7 +107,9 @@ namespace kripto
                 {
                     // Backend API'ning base URL'ini o'rnatish
                     string apiBaseUrl = $"http://{IpAddress}:5000"; // Port'ni o'zingiznikiga o'zgartiring
-                    userApiService = new UserApiService(apiBaseUrl);
+                    userApiService = new UserApiService(apiBaseUrl,authtoken);
+
+                    var res2 = userApiService.GetAllUsersAsync();
 
                     System.Diagnostics.Debug.WriteLine($"UserApiService yaratildi: {apiBaseUrl}");
                 }
@@ -147,6 +153,9 @@ namespace kripto
 
                 // API token o'rnatish va userlarni yuklash
                 await InitializeApiIntegrationAsync();
+
+                // UserApiService'ni yaratish
+                InitializeUserApiService();
 
                 // UI ni yangilash
                 UpdatePlaceholder();
@@ -195,7 +204,7 @@ namespace kripto
                         userApiService.SetAuthToken("test_token_123");
                         System.Diagnostics.Debug.WriteLine("API token o'rnatildi");
 
-                        userApiService = new UserApiService(IpAddress);
+                        userApiService = new UserApiService(IpAddress,authtoken);
 
                         Console.WriteLine(userApiService.GetAllUsersAsync);
                     }
@@ -355,17 +364,19 @@ namespace kripto
 
                 // Avval server mavjudligini tekshirish
                 bool serverExists = await TestServerAsync(IpAddress, "8099");
-                if (!serverExists)
+                if (serverExists is not true)
                 {
                     throw new Exception($"Server {IpAddress}:8099 ga ulanib bo'lmadi. Server ishlamayotgan bo'lishi mumkin.");
                 }
 
                 // Authentication
-                bool authenticated = await chatService.AuthenticateAsync(Password);
-                if (!authenticated)
+                string authenticated = await chatService.AuthenticateAsync(Password);
+                if (authenticated is null)
                 {
                     throw new Exception("Authentication failed - parol noto'g'ri bo'lishi mumkin");
                 }
+
+                authtoken = authenticated;
 
                 // Connection
                 bool connected = await chatService.ConnectAsync();

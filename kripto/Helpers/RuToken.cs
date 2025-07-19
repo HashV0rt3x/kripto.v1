@@ -161,19 +161,19 @@ namespace kripto.Helpers
         /// <summary>
         /// Custom token o'qish
         /// </summary>
-        public static void ReadCustomToken()
+        public static string? ReadCustomToken(string label)
         {
+            var tokenData = string.Empty;
             try
             {
                 Console.WriteLine("\n📖 === CUSTOM TOKEN O'QISH === 📖");
 
                 Console.Write("🏷️ Token nomi (label): ");
-                var label = Console.ReadLine();
 
                 if (string.IsNullOrWhiteSpace(label))
                 {
                     Console.WriteLine("❌ Token nomi bo'sh bo'lishi mumkin emas!");
-                    return;
+                    return null;
                 }
 
                 Console.WriteLine("🔍 Token qidirilmoqda...");
@@ -189,7 +189,7 @@ namespace kripto.Helpers
                 if (foundObjects.Count == 0)
                 {
                     Console.WriteLine($"❌ '{label}' nomli token topilmadi!");
-                    return;
+                    return null;
                 }
 
                 if (foundObjects.Count > 1)
@@ -202,7 +202,7 @@ namespace kripto.Helpers
                     Console.Write("🔢 Qaysi birini tanlaysiz? (1-" + foundObjects.Count + "): ");
                     if (int.TryParse(Console.ReadLine(), out int choice) && choice > 0 && choice <= foundObjects.Count)
                     {
-                        ReadSingleToken(foundObjects[choice - 1]);
+                        tokenData= ReadSingleToken(foundObjects[choice - 1]);
                     }
                     else
                     {
@@ -211,7 +211,7 @@ namespace kripto.Helpers
                 }
                 else
                 {
-                    ReadSingleToken(foundObjects[0]);
+                    tokenData = ReadSingleToken(foundObjects[0]);
                 }
             }
             catch (Pkcs11Exception pkcs11Ex)
@@ -223,12 +223,13 @@ namespace kripto.Helpers
             {
                 Console.WriteLine($"❌ Xatolik: {ex.Message}");
             }
+            return tokenData;
         }
 
         /// <summary>
         /// Bitta tokenni o'qish
         /// </summary>
-        public static void ReadSingleToken(IObjectHandle objectHandle)
+        public static string? ReadSingleToken(IObjectHandle objectHandle)
         {
             try
             {
@@ -252,17 +253,20 @@ namespace kripto.Helpers
                 Console.WriteLine($"   ✏️ O'zgartirilishi mumkin: {(isModifiable ? "Ha" : "Yo'q")}");
                 Console.WriteLine($"   📏 Hajmi: {attributes[1].GetValueAsByteArray().Length} bayt");
                 Console.WriteLine($"   🆔 Object ID: {objectHandle.ObjectId}");
+
+                return tokenData;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Token o'qishda xatolik: {ex.Message}");
+                return null;
             }
         }
 
         /// <summary>
         /// Barcha tokenlarni ko'rish
         /// </summary>
-        public static void ListAllTokens()
+        public static List<string>? ListAllTokens()
         {
             try
             {
@@ -279,10 +283,13 @@ namespace kripto.Helpers
                 if (foundObjects.Count == 0)
                 {
                     Console.WriteLine("❌ Hech qanday custom token topilmadi!");
-                    return;
+                    return null;
                 }
 
                 Console.WriteLine($"📦 Jami {foundObjects.Count} ta token topildi:\n");
+
+
+                List<string> tokenList = new List<string>();
 
                 for (int i = 0; i < foundObjects.Count; i++)
                 {
@@ -304,16 +311,21 @@ namespace kripto.Helpers
                         Console.WriteLine($"   🔐 Private: {(isPrivate ? "Ha" : "Yo'q")}");
                         Console.WriteLine($"   🆔 Object ID: {foundObjects[i].ObjectId}");
                         Console.WriteLine();
+
+                        tokenList.Add(label);
+
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"{i + 1}. ❌ Token o'qishda xatolik: {ex.Message}");
                     }
                 }
+                return tokenList;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Tokenlarni ro'yxatlashda xatolik: {ex.Message}");
+                return null;
             }
         }
 

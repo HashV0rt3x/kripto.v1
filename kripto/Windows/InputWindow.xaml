@@ -30,7 +30,7 @@
                     <TextBox x:Name="IpAddressTextBox"
                              Padding="5,5,5,5"
                              Height="30"
-                             Text="127.0.0.1"
+                             Text="37.27.216.90"
                              FontFamily="Dubai"
                              HorizontalAlignment="Center"
                              FontSize="14"
