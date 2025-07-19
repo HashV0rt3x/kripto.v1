@@ -602,7 +602,7 @@ namespace kripto
                     // Fallback - string list'dan user buttonlar yaratish
                     foreach (string user in onlineUsers)
                     {
-                        var userButton = CreateUserControlFromApi(user);
+                        var userButton = CreateUserButton(user);
                         UsersPanel.Children.Add(userButton);
                     }
                 }
@@ -722,7 +722,6 @@ namespace kripto
                 Cursor = Cursors.Hand,
                 Tag = userName
             };
-
             var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
 
             // Avatar

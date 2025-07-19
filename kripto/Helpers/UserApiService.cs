@@ -170,8 +170,6 @@ namespace kripto.Services
         }
 
 
-
-
         /// <summary>
         /// Online userlar sonini olish
         /// </summary>

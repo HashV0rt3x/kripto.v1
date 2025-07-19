@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="controller\" />
     <Folder Include="Resources\" />
   </ItemGroup>
 
