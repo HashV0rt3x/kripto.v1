@@ -99,17 +99,18 @@ namespace kripto
         /// <summary>
         /// UserApiService'ni ishga tushirish
         /// </summary>
-        private void InitializeUserApiService()
+        private async Task InitializeUserApiService()
         {
             try
             {
                 if (!string.IsNullOrEmpty(IpAddress))
                 {
                     // Backend API'ning base URL'ini o'rnatish
-                    string apiBaseUrl = $"http://{IpAddress}:5000"; // Port'ni o'zingiznikiga o'zgartiring
+                    string apiBaseUrl = $"http://{IpAddress}:8099"; // Port'ni o'zingiznikiga o'zgartiring
                     userApiService = new UserApiService(apiBaseUrl,authtoken);
 
-                    var res2 = userApiService.GetAllUsersAsync();
+                    onlineUsers = await userApiService.GetAllUserNamesAsync();
+                    UpdateUsersPanel();
 
                     System.Diagnostics.Debug.WriteLine($"UserApiService yaratildi: {apiBaseUrl}");
                 }
@@ -601,7 +602,7 @@ namespace kripto
                     // Fallback - string list'dan user buttonlar yaratish
                     foreach (string user in onlineUsers)
                     {
-                        var userButton = CreateUserButton(user);
+                        var userButton = CreateUserControlFromApi(user);
                         UsersPanel.Children.Add(userButton);
                     }
                 }
