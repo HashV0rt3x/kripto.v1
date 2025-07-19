@@ -19,11 +19,12 @@ namespace kripto
 
                 base.OnStartup(e);
 
-                // ShutdownMode ni o'zgartirish - dastur manual yopilguncha ishlaydi
+                // ShutdownMode ni o'zgartirish
                 this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-                // Global exception handler qo'shish
+                // Global exception handler
                 this.DispatcherUnhandledException += App_DispatcherUnhandledException;
+                AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
                 // Input window yaratish va ko'rsatish
                 System.Diagnostics.Debug.WriteLine("🔧 InputWindow yaratilmoqda...");
@@ -36,7 +37,7 @@ namespace kripto
 
                 if (dialogResult == true)
                 {
-                    // Ma'lumotlarni olish va validatsiya qilish
+                    // Ma'lumotlarni olish va validatsiya
                     string ipAddress = inputWindow.IpAddressText?.Trim() ?? string.Empty;
                     string password = inputWindow.Password?.Trim() ?? string.Empty;
 
@@ -60,7 +61,7 @@ namespace kripto
                     // Main window'ni asosiy window qilib belgilash
                     this.MainWindow = mainWindow;
 
-                    // ShutdownMode ni qaytarish - main window yopilganda dastur tugaydi
+                    // ShutdownMode ni qaytarish
                     this.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
                     System.Diagnostics.Debug.WriteLine("🚀 MainWindow.Show() chaqirilmoqda...");
@@ -116,19 +117,44 @@ namespace kripto
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"💥 Global exception: {e.Exception.Message}");
+                System.Diagnostics.Debug.WriteLine($"💥 UI Thread exception: {e.Exception.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {e.Exception.StackTrace}");
 
-                string errorMessage = $"Kutilmagan xatolik yuz berdi:\n\n{e.Exception.Message}\n\nDastur davom etishga harakat qiladi.";
+                string errorMessage = $"UI xatoligi:\n\n{e.Exception.Message}\n\nDastur davom etishga harakat qiladi.";
 
-                MessageBox.Show(errorMessage, "Xatolik", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(errorMessage, "UI Xatoligi", MessageBoxButton.OK, MessageBoxImage.Error);
 
-                // Exception'ni handle qilindi deb belgilash
+                // Exception'ni handle qilindi
                 e.Handled = true;
             }
             catch
             {
-                // Agar global exception handler'da ham xatolik bo'lsa, dasturni majburiy yopish
+                Environment.Exit(-1);
+            }
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            try
+            {
+                var exception = e.ExceptionObject as Exception;
+                System.Diagnostics.Debug.WriteLine($"💥 Unhandled domain exception: {exception?.Message}");
+                System.Diagnostics.Debug.WriteLine($"Is terminating: {e.IsTerminating}");
+
+                if (exception != null)
+                {
+                    string errorMessage = $"Kutilmagan xatolik:\n\n{exception.Message}\n\nDastur yopilishi mumkin.";
+
+                    // UI thread'da bo'lsak MessageBox ko'rsatish
+                    if (Application.Current?.Dispatcher?.CheckAccess() == true)
+                    {
+                        MessageBox.Show(errorMessage, "Kritik xatolik", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch
+            {
+                // Final fallback
                 Environment.Exit(-1);
             }
         }
@@ -139,7 +165,7 @@ namespace kripto
             {
                 System.Diagnostics.Debug.WriteLine("🔚 Dastur yopilmoqda - cleanup...");
 
-                // Cleanup operations
+                // Global cleanup
                 base.OnExit(e);
 
                 System.Diagnostics.Debug.WriteLine("✅ Dastur muvaffaqiyatli yopildi");

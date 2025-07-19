@@ -1,110 +1,162 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace kripto.Helpers
 {
-    class chatService
+    public class ChatService : IDisposable
     {
-        public chatService()
-        {
-        }
         private static readonly HttpClient httpClient = new HttpClient();
-        private static ClientWebSocket? webSocket;
-        private static CancellationTokenSource? cancellationTokenSource;
+        private ClientWebSocket? webSocket;
+        private CancellationTokenSource? cancellationTokenSource;
+        private bool isConnected = false;
+        private bool isDisposed = false;
 
-        private static readonly string SERVER_IP = "37.27.216.90";
-        private static readonly string SERVER_PORT = "8099";
-        private static readonly string USERNAME = "user1";
-        private static readonly string PASSWORD = "user123";
+        public string ServerIP { get; set; } = "37.27.216.90";
+        public string ServerPort { get; set; } = "8099";
+        public string Username { get; set; } = "user1";
+        public string? AuthToken { get; private set; }
 
-        public static async Task<string?> GetAuthTokenAsync()
+        // Events
+        public event Action<string, string, DateTime>? MessageReceived;
+        public event Action<List<string>>? OnlineUsersUpdated;
+        public event Action<bool>? ConnectionStatusChanged;
+        public event Action<string>? ErrorOccurred;
+
+        public bool IsConnected => isConnected && webSocket?.State == WebSocketState.Open;
+
+        public ChatService(string serverIP, string serverPort, string username)
+        {
+            ServerIP = serverIP;
+            ServerPort = serverPort;
+            Username = username;
+
+            System.Diagnostics.Debug.WriteLine($"ChatService yaratildi: {username}@{serverIP}:{serverPort}");
+        }
+
+        /// <summary>
+        /// Auth token olish
+        /// </summary>
+        public async Task<bool> AuthenticateAsync(string password)
         {
             try
             {
-                Console.WriteLine("🔐 Getting auth token...");
+                System.Diagnostics.Debug.WriteLine("🔐 Authentication boshlandi...");
 
                 var loginRequest = new
                 {
-                    username = USERNAME,
-                    password = PASSWORD
+                    username = Username,
+                    password = password
                 };
 
                 var json = JsonSerializer.Serialize(loginRequest);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PostAsync(
-                    $"http://{SERVER_IP}:{SERVER_PORT}/api/auth/login",
+                    $"http://{ServerIP}:{ServerPort}/api/auth/login",
                     content);
 
-                Console.WriteLine($"Auth Response: {response.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"Auth Response: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Auth Response Body: {responseContent}");
+                    System.Diagnostics.Debug.WriteLine($"Auth Response: {responseContent}");
 
-                    // Parse the actual response structure
                     var loginResponse = JsonSerializer.Deserialize<LoginResponse>(responseContent, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     });
 
-                    return loginResponse?.Token;
+                    if (loginResponse?.Success == true && !string.IsNullOrEmpty(loginResponse.Token))
+                    {
+                        AuthToken = loginResponse.Token;
+                        System.Diagnostics.Debug.WriteLine("✅ Authentication muvaffaqiyatli");
+                        return true;
+                    }
                 }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"❌ Auth failed: {errorContent}");
-                    return null;
-                }
+
+                var errorContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"❌ Auth failed: {errorContent}");
+                ErrorOccurred?.Invoke($"Authentication failed: {errorContent}");
+                return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Auth error: {ex.Message}");
-                return null;
+                System.Diagnostics.Debug.WriteLine($"❌ Auth error: {ex.Message}");
+                ErrorOccurred?.Invoke($"Authentication error: {ex.Message}");
+                return false;
             }
         }
 
-        public static async Task TestWebSocketAsync(string? authToken)
+        /// <summary>
+        /// WebSocket connection ochish
+        /// </summary>
+        public async Task<bool> ConnectAsync()
         {
             try
             {
-                Console.WriteLine("\n🔌 Testing WebSocket connection...");
+                if (string.IsNullOrEmpty(AuthToken))
+                {
+                    System.Diagnostics.Debug.WriteLine("❌ Auth token mavjud emas");
+                    ErrorOccurred?.Invoke("Auth token required. Please authenticate first.");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine("🔌 WebSocket connection boshlandi...");
+
+                // Cleanup existing connection
+                await DisconnectAsync();
 
                 cancellationTokenSource = new CancellationTokenSource();
                 webSocket = new ClientWebSocket();
-                // Server expects token as query parameter
-                var uri = new Uri($"ws://{SERVER_IP}:{SERVER_PORT}/ws/chat?user={USERNAME}&token={authToken}");
-                Console.WriteLine($"Connecting to: {uri}");
 
+                // WebSocket URI
+                var uri = new Uri($"ws://{ServerIP}:{ServerPort}/ws/chat?user={Username}&token={AuthToken}");
+                System.Diagnostics.Debug.WriteLine($"Connecting to: {uri}");
+
+                // Connect
                 await webSocket.ConnectAsync(uri, cancellationTokenSource.Token);
 
-                Console.WriteLine("✅ WebSocket connected successfully!");
-                Console.WriteLine($"State: {webSocket.State}");
+                if (webSocket.State == WebSocketState.Open)
+                {
+                    isConnected = true;
+                    ConnectionStatusChanged?.Invoke(true);
 
-                // Start listening for messages
-                _ = Task.Run(ListenForMessagesAsync);
+                    // Start listening
+                    _ = Task.Run(ListenForMessagesAsync);
 
-                // Send a test message
-                await SendTestMessageAsync();
+                    // Get online users
+                    await GetOnlineUsersAsync();
+
+                    System.Diagnostics.Debug.WriteLine("✅ WebSocket muvaffaqiyatli ulandi");
+                    return true;
+                }
+                else
+                {
+                    throw new Exception($"WebSocket connection failed. State: {webSocket.State}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ WebSocket connection failed: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-                }
+                System.Diagnostics.Debug.WriteLine($"❌ WebSocket connection xatolik: {ex.Message}");
+                isConnected = false;
+                ConnectionStatusChanged?.Invoke(false);
+                ErrorOccurred?.Invoke($"Connection error: {ex.Message}");
+                return false;
             }
         }
 
-        public static async Task ListenForMessagesAsync()
+        /// <summary>
+        /// WebSocket xabarlarini tinglash
+        /// </summary>
+        private async Task ListenForMessagesAsync()
         {
             var buffer = new byte[4096];
 
@@ -120,157 +172,367 @@ namespace kripto.Helpers
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Console.WriteLine($"📨 Received: {message}");
+                        System.Diagnostics.Debug.WriteLine($"📨 Qabul qilindi: {message}");
+
+                        // Xabarni parse qilish
+                        await ParseIncomingMessage(message);
                     }
                     else if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Console.WriteLine("🔌 WebSocket connection closed by server");
+                        System.Diagnostics.Debug.WriteLine("🔌 Server tomonidan yopildi");
                         break;
                     }
                 }
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("🔌 WebSocket listening cancelled");
+                System.Diagnostics.Debug.WriteLine("🔌 Listening bekor qilindi");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ WebSocket listening error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"❌ Listening xatolik: {ex.Message}");
+                ErrorOccurred?.Invoke($"Message listening error: {ex.Message}");
+            }
+            finally
+            {
+                isConnected = false;
+                ConnectionStatusChanged?.Invoke(false);
             }
         }
 
-        public static async Task SendTestMessageAsync()
+        /// <summary>
+        /// Kelgan xabarlarni parse qilish
+        /// </summary>
+        private async Task ParseIncomingMessage(string jsonMessage)
         {
             try
             {
-                if (webSocket?.State == WebSocketState.Open)
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    var testMessage = new
+                    try
                     {
-                        type = "send_message",
-                        user = USERNAME,
-                        data = new
+                        var messageObj = JsonSerializer.Deserialize<JsonElement>(jsonMessage);
+
+                        if (messageObj.TryGetProperty("type", out var typeElement))
                         {
-                            fromUser = USERNAME,
-                            toUser = "testuser2",
-                            text = "Hello from console test!",
-                            messageType = "text"
+                            string messageType = typeElement.GetString() ?? "";
+
+                            switch (messageType.ToLower())
+                            {
+                                case "message":
+                                case "send_message":
+                                    HandleIncomingChatMessage(messageObj);
+                                    break;
+
+                                case "online_users":
+                                    HandleOnlineUsersUpdate(messageObj);
+                                    break;
+
+                                case "user_joined":
+                                case "user_left":
+                                    HandleUserStatusChange(messageObj);
+                                    break;
+
+                                case "pong":
+                                    System.Diagnostics.Debug.WriteLine("🏓 Pong qabul qilindi");
+                                    break;
+
+                                default:
+                                    System.Diagnostics.Debug.WriteLine($"⚠️ Noma'lum message type: {messageType}");
+                                    break;
+                            }
                         }
-                    };
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ Message parse xatolik: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ ParseIncomingMessage xatolik: {ex.Message}");
+            }
+        }
 
-                    var json = JsonSerializer.Serialize(testMessage);
-                    var bytes = Encoding.UTF8.GetBytes(json);
+        /// <summary>
+        /// Chat xabarini handle qilish
+        /// </summary>
+        private void HandleIncomingChatMessage(JsonElement messageObj)
+        {
+            try
+            {
+                if (messageObj.TryGetProperty("data", out var dataElement))
+                {
+                    string fromUser = "";
+                    string messageText = "";
 
-                    await webSocket.SendAsync(
-                        new ArraySegment<byte>(bytes),
-                        WebSocketMessageType.Text,
-                        true,
-                        CancellationToken.None);
+                    if (dataElement.TryGetProperty("fromUser", out var fromElement))
+                        fromUser = fromElement.GetString() ?? "";
 
-                    Console.WriteLine("📤 Test message sent!");
+                    if (dataElement.TryGetProperty("text", out var textElement))
+                        messageText = textElement.GetString() ?? "";
+
+                    if (!string.IsNullOrEmpty(fromUser) && !string.IsNullOrEmpty(messageText))
+                    {
+                        MessageReceived?.Invoke(fromUser, messageText, DateTime.Now);
+                        System.Diagnostics.Debug.WriteLine($"💬 Xabar: {fromUser} -> {messageText}");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Send message error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"❌ HandleIncomingChatMessage xatolik: {ex.Message}");
             }
         }
 
-        public static async Task SendPingAsync()
+        /// <summary>
+        /// Online userlar ro'yxatini handle qilish
+        /// </summary>
+        private void HandleOnlineUsersUpdate(JsonElement messageObj)
         {
-            if (webSocket?.State == WebSocketState.Open)
+            try
             {
-                var pingMessage = new
+                var users = new List<string>();
+
+                if (messageObj.TryGetProperty("users", out var usersElement) &&
+                    usersElement.ValueKind == JsonValueKind.Array)
                 {
-                    type = "ping",
-                    user = USERNAME
-                };
+                    foreach (var userElement in usersElement.EnumerateArray())
+                    {
+                        string? userName = userElement.GetString();
+                        if (!string.IsNullOrEmpty(userName))
+                        {
+                            users.Add(userName);
+                        }
+                    }
+                }
 
-                var json = JsonSerializer.Serialize(pingMessage);
-                var bytes = Encoding.UTF8.GetBytes(json);
-
-                await webSocket.SendAsync(
-                    new ArraySegment<byte>(bytes),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None);
-
-                Console.WriteLine("🏓 Ping sent!");
+                OnlineUsersUpdated?.Invoke(users);
+                System.Diagnostics.Debug.WriteLine($"👥 Online users: {string.Join(", ", users)}");
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("❌ WebSocket not connected");
+                System.Diagnostics.Debug.WriteLine($"❌ HandleOnlineUsersUpdate xatolik: {ex.Message}");
             }
         }
 
-        public static async Task SendCustomMessageAsync(string toUser, string text)
+        /// <summary>
+        /// User status o'zgarishini handle qilish
+        /// </summary>
+        private void HandleUserStatusChange(JsonElement messageObj)
         {
-            if (webSocket?.State == WebSocketState.Open)
+            try
             {
+                // User joined/left eventlarini handle qilish
+                // Kerak bo'lsa online users ro'yxatini yangilash
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500); // Kichik delay
+                    await GetOnlineUsersAsync();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ HandleUserStatusChange xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Xabar yuborish
+        /// </summary>
+        public async Task<bool> SendMessageAsync(string toUser, string messageText)
+        {
+            try
+            {
+                if (!IsConnected)
+                {
+                    ErrorOccurred?.Invoke("Not connected to server");
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(messageText))
+                {
+                    return false;
+                }
+
                 var message = new
                 {
                     type = "send_message",
-                    user = USERNAME,
+                    user = Username,
                     data = new
                     {
-                        fromUser = USERNAME,
+                        fromUser = Username,
                         toUser = toUser,
-                        text = text,
-                        messageType = "text"
+                        text = messageText.Trim(),
+                        messageType = "text",
+                        timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
                 };
 
                 var json = JsonSerializer.Serialize(message);
                 var bytes = Encoding.UTF8.GetBytes(json);
 
-                await webSocket.SendAsync(
+                await webSocket!.SendAsync(
                     new ArraySegment<byte>(bytes),
                     WebSocketMessageType.Text,
                     true,
                     CancellationToken.None);
 
-                Console.WriteLine($"📤 Message sent to {toUser}: {text}");
+                System.Diagnostics.Debug.WriteLine($"📤 Xabar yuborildi: {toUser} -> {messageText}");
+                return true;
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("❌ WebSocket not connected");
+                System.Diagnostics.Debug.WriteLine($"❌ SendMessage xatolik: {ex.Message}");
+                ErrorOccurred?.Invoke($"Send message error: {ex.Message}");
+                return false;
             }
         }
 
-        public static async Task GetOnlineUsersAsync()
+        /// <summary>
+        /// Online userlar ro'yxatini so'rash
+        /// </summary>
+        public async Task GetOnlineUsersAsync()
         {
-            if (webSocket?.State == WebSocketState.Open)
+            try
             {
+                if (!IsConnected)
+                    return;
+
                 var message = new
                 {
                     type = "get_online_users",
-                    user = USERNAME
+                    user = Username
                 };
 
                 var json = JsonSerializer.Serialize(message);
                 var bytes = Encoding.UTF8.GetBytes(json);
 
-                await webSocket.SendAsync(
+                await webSocket!.SendAsync(
                     new ArraySegment<byte>(bytes),
                     WebSocketMessageType.Text,
                     true,
                     CancellationToken.None);
 
-                Console.WriteLine("📋 Requested online users list...");
+                System.Diagnostics.Debug.WriteLine("📋 Online users so'ralindi");
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("❌ WebSocket not connected");
+                System.Diagnostics.Debug.WriteLine($"❌ GetOnlineUsers xatolik: {ex.Message}");
             }
         }
 
-        public class LoginResponse
+        /// <summary>
+        /// Ping yuborish
+        /// </summary>
+        public async Task SendPingAsync()
         {
-            public bool Success { get; set; }
-            public string? Token { get; set; }
-            public string? Message { get; set; }
-            public DateTime Timestamp { get; set; }
+            try
+            {
+                if (!IsConnected)
+                    return;
+
+                var pingMessage = new
+                {
+                    type = "ping",
+                    user = Username,
+                    timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                };
+
+                var json = JsonSerializer.Serialize(pingMessage);
+                var bytes = Encoding.UTF8.GetBytes(json);
+
+                await webSocket!.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Text,
+                    true,
+                    CancellationToken.None);
+
+                System.Diagnostics.Debug.WriteLine("🏓 Ping yuborildi");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ SendPing xatolik: {ex.Message}");
+            }
         }
 
+        /// <summary>
+        /// Ulanishni yopish
+        /// </summary>
+        public async Task DisconnectAsync()
+        {
+            try
+            {
+                if (cancellationTokenSource != null)
+                {
+                    cancellationTokenSource.Cancel();
+                    cancellationTokenSource.Dispose();
+                    cancellationTokenSource = null;
+                }
+
+                if (webSocket != null)
+                {
+                    if (webSocket.State == WebSocketState.Open)
+                    {
+                        await webSocket.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "Client disconnect",
+                            CancellationToken.None);
+                    }
+
+                    webSocket.Dispose();
+                    webSocket = null;
+                }
+
+                isConnected = false;
+                ConnectionStatusChanged?.Invoke(false);
+
+                System.Diagnostics.Debug.WriteLine("🔌 WebSocket ulanishi yopildi");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Disconnect xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resurslarni tozalash
+        /// </summary>
+        public void Dispose()
+        {
+            if (isDisposed)
+                return;
+
+            try
+            {
+                _ = Task.Run(async () => await DisconnectAsync());
+
+                httpClient?.Dispose();
+                isDisposed = true;
+
+                System.Diagnostics.Debug.WriteLine("✅ ChatService disposed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Dispose xatolik: {ex.Message}");
+            }
+        }
+
+        ~ChatService()
+        {
+            Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Login response modeli
+    /// </summary>
+    public class LoginResponse
+    {
+        public bool Success { get; set; }
+        public string? Token { get; set; }
+        public string? Message { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 }

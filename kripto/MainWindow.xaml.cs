@@ -2,6 +2,8 @@
 using kripto.Security;
 using kripto.Windows;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,25 +23,26 @@ namespace kripto
     /// </summary>
     public partial class MainWindow : Window
     {
-        // Connection info properties
+        // Services
         private RutokenHelper? rutokenHelper;
+        private ChatService? chatService;
+
+        // Properties
         private string currentUser = "Unknown User";
-        private string token = string.Empty;
+        private string selectedChatUser = string.Empty;
+        private List<string> onlineUsers = new List<string>();
 
         public string IpAddress { get; private set; } = string.Empty;
         public string Password { get; private set; } = string.Empty;
 
         public MainWindow()
         {
-
-
             try
             {
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor boshlandi");
                 InitializeComponent();
                 System.Diagnostics.Debug.WriteLine("MainWindow InitializeComponent tugadi");
 
-                // Simple test
                 this.Title = "Kripto Messenger - Starting...";
 
                 // Window events
@@ -47,12 +50,6 @@ namespace kripto
                 this.Closing += MainWindow_Closing;
 
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor tugadi");
-                var _token = chatService.GetAuthTokenAsync();
-                //token = _token.Result;
-                // chatService.TestWebSocketAsync(token);
-
-                chatService.ListenForMessagesAsync();
-
             }
             catch (Exception ex)
             {
@@ -63,19 +60,16 @@ namespace kripto
             }
         }
 
-        // Connection info'ni o'rnatish uchun method
+        /// <summary>
+        /// Connection ma'lumotlarini o'rnatish
+        /// </summary>
         public void SetConnectionInfo(string ipAddress, string password)
         {
             this.IpAddress = ipAddress;
             this.Password = password;
 
-            System.Diagnostics.Debug.WriteLine($"Connection info set: {ipAddress}, {password}");
-
-            // Title'ni yangilash
-            this.Title = $"Kripto Messenger - Connected to {ipAddress}";
-
-
-            
+            System.Diagnostics.Debug.WriteLine($"Connection info set: {ipAddress}, {password.Length} chars");
+            this.Title = $"Kripto Messenger - Connecting to {ipAddress}";
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -95,10 +89,10 @@ namespace kripto
                 // Welcome message
                 AddWelcomeMessage();
 
-                // RuToken'ni ishga tushirish - faqat password mavjud bo'lganda
+                // RuToken'ni ishga tushirish
                 if (!string.IsNullOrEmpty(Password))
                 {
-                    System.Diagnostics.Debug.WriteLine($"RuToken ishga tushirilmoqda, Password length: {Password.Length}");
+                    System.Diagnostics.Debug.WriteLine($"RuToken ishga tushirilmoqda...");
                     await InitializeRuTokenAsync();
                 }
                 else
@@ -107,15 +101,18 @@ namespace kripto
                     await SetFallbackUserAsync();
                 }
 
+                // Chat service'ni ishga tushirish
+                await InitializeChatServiceAsync();
+
                 // UI ni yangilash
                 UpdatePlaceholder();
+                UpdateUIState();
 
                 System.Diagnostics.Debug.WriteLine("MainWindow_Loaded muvaffaqiyatli tugadi");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"MainWindow_Loaded xatolik: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 MessageBox.Show($"Dastur yuklanishida xatolik: {ex.Message}", "Xatolik",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
@@ -127,9 +124,6 @@ namespace kripto
 
             try
             {
-                // RuToken resurslarini tozalash
-                rutokenHelper?.Dispose();
-
                 // Confirmation dialog
                 var result = MessageBox.Show("Dasturdan chiqishni xohlaysizmi?", "Tasdiqlash",
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -137,11 +131,334 @@ namespace kripto
                 if (result == MessageBoxResult.No)
                 {
                     e.Cancel = true;
+                    return;
                 }
+
+                // Resurslarni tozalash
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (chatService != null)
+                        {
+                            await chatService.DisconnectAsync();
+                            chatService.Dispose();
+                        }
+
+                        rutokenHelper?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Cleanup xatolik: {ex.Message}");
+                    }
+                });
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"MainWindow_Closing xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Chat service'ni ishga tushirish
+        /// </summary>
+        private async Task InitializeChatServiceAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("🔌 Chat service ishga tushirilmoqda...");
+
+                // ChatService yaratish
+                chatService = new ChatService(IpAddress, "8099", currentUser);
+
+                // Event handlerlar
+                chatService.MessageReceived += OnMessageReceived;
+                chatService.OnlineUsersUpdated += OnOnlineUsersUpdated;
+                chatService.ConnectionStatusChanged += OnConnectionStatusChanged;
+                chatService.ErrorOccurred += OnErrorOccurred;
+
+                // Authentication
+                bool authenticated = await chatService.AuthenticateAsync(Password);
+                if (!authenticated)
+                {
+                    throw new Exception("Authentication failed");
+                }
+
+                // Connection
+                bool connected = await chatService.ConnectAsync();
+                if (!connected)
+                {
+                    throw new Exception("WebSocket connection failed");
+                }
+
+                System.Diagnostics.Debug.WriteLine("✅ Chat service muvaffaqiyatli ishga tushdi");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Chat service init xatolik: {ex.Message}");
+
+                Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show($"Server bilan bog'lanishda xatolik:\n{ex.Message}\n\nOffline rejimda davom etasiz.",
+                        "Ulanish xatoligi", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                    this.Title = $"Kripto Messenger - 🔴 Offline - {currentUser}";
+                });
+            }
+        }
+
+        /// <summary>
+        /// Xabar qabul qilish event handler
+        /// </summary>
+        private void OnMessageReceived(string fromUser, string messageText, DateTime timestamp)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    bool isOwnMessage = fromUser.Equals(currentUser, StringComparison.OrdinalIgnoreCase);
+                    AddMessageToChat(messageText, fromUser, isOwnMessage);
+
+                    // Agar boshqa userdan xabar kelsa, chatni o'sha user bilan ochish
+                    if (!isOwnMessage && string.IsNullOrEmpty(selectedChatUser))
+                    {
+                        SelectChatUser(fromUser);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OnMessageReceived xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Online userlar yangilash event handler
+        /// </summary>
+        private void OnOnlineUsersUpdated(List<string> users)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    onlineUsers = users.Where(u => !u.Equals(currentUser, StringComparison.OrdinalIgnoreCase)).ToList();
+                    UpdateUsersPanel();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OnOnlineUsersUpdated xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Connection status o'zgarish event handler
+        /// </summary>
+        private void OnConnectionStatusChanged(bool isConnected)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    string status = isConnected ? "🟢 Connected" : "🔴 Disconnected";
+                    this.Title = $"Kripto Messenger - {status} - {currentUser}";
+                    UpdateUIState();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OnConnectionStatusChanged xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Xatolik event handler
+        /// </summary>
+        private void OnErrorOccurred(string errorMessage)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Chat error: {errorMessage}");
+
+                    // Critical xatoliklarni foydalanuvchiga ko'rsatish
+                    if (errorMessage.Contains("Authentication") || errorMessage.Contains("Connection"))
+                    {
+                        MessageBox.Show($"Chat xatoligi: {errorMessage}", "Xatolik",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OnErrorOccurred xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Users panel'ni yangilash
+        /// </summary>
+        private void UpdateUsersPanel()
+        {
+            try
+            {
+                if (UsersPanel == null) return;
+
+                UsersPanel.Children.Clear();
+
+                foreach (string user in onlineUsers)
+                {
+                    var userButton = CreateUserButton(user);
+                    UsersPanel.Children.Add(userButton);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Users panel yangilandi: {onlineUsers.Count} users");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateUsersPanel xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// User button yaratish
+        /// </summary>
+        private Border CreateUserButton(string userName)
+        {
+            var userBorder = new Border
+            {
+                Background = new SolidColorBrush(userName == selectedChatUser ?
+                    Color.FromRgb(35, 134, 54) : Color.FromRgb(33, 38, 45)),
+                Margin = new Thickness(12, 4, 12, 4),
+                Padding = new Thickness(12, 8, 12, 8),
+                CornerRadius = new CornerRadius(6),
+                Cursor = Cursors.Hand
+            };
+
+            var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
+
+            // Avatar
+            var avatar = new Border
+            {
+                Width = 32,
+                Height = 32,
+                CornerRadius = new CornerRadius(16),
+                Background = new SolidColorBrush(Color.FromRgb(35, 134, 54)),
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+
+            var avatarText = new TextBlock
+            {
+                Text = userName.Length > 0 ? userName[0].ToString().ToUpper() : "?",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            avatar.Child = avatarText;
+
+            // User info
+            var userInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
+            var nameText = new TextBlock
+            {
+                Text = userName,
+                FontSize = 14,
+                FontWeight = FontWeights.Medium,
+                Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252))
+            };
+
+            var statusText = new TextBlock
+            {
+                Text = "Online",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129))
+            };
+
+            userInfo.Children.Add(nameText);
+            userInfo.Children.Add(statusText);
+
+            stackPanel.Children.Add(avatar);
+            stackPanel.Children.Add(userInfo);
+            userBorder.Child = stackPanel;
+
+            // Click event
+            userBorder.MouseLeftButtonUp += (s, e) => SelectChatUser(userName);
+
+            return userBorder;
+        }
+
+        /// <summary>
+        /// Chat user'ni tanlash
+        /// </summary>
+        private void SelectChatUser(string userName)
+        {
+            try
+            {
+                selectedChatUser = userName;
+
+                // Chat header'ni yangilash
+                if (ChatHeaderTextBlock != null)
+                {
+                    ChatHeaderTextBlock.Text = userName;
+                }
+
+                if (ChatStatusText != null)
+                {
+                    ChatStatusText.Text = "Online";
+                }
+
+                if (ChatAvatarText != null)
+                {
+                    ChatAvatarText.Text = userName.Length > 0 ? userName[0].ToString().ToUpper() : "?";
+                }
+
+                // Users panel'ni yangilash (selection highlight)
+                UpdateUsersPanel();
+
+                System.Diagnostics.Debug.WriteLine($"Chat user selected: {userName}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SelectChatUser xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// UI state'ni yangilash
+        /// </summary>
+        private void UpdateUIState()
+        {
+            try
+            {
+                bool isConnected = chatService?.IsConnected == true;
+
+                if (SendButton != null)
+                {
+                    SendButton.IsEnabled = isConnected;
+                }
+
+                if (MessageTextBox != null)
+                {
+                    MessageTextBox.IsEnabled = isConnected;
+                }
+
+                if (uplodeButton != null)
+                {
+                    uplodeButton.IsEnabled = isConnected;
+                }
+
+                if (callButton != null)
+                {
+                    callButton.IsEnabled = isConnected;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateUIState xatolik: {ex.Message}");
             }
         }
 
@@ -153,9 +470,9 @@ namespace kripto
                 {
                     Background = new SolidColorBrush(Color.FromRgb(31, 41, 55)),
                     CornerRadius = new CornerRadius(8),
-                    //Padding = new Thickness(16, 12),
+                    Padding = new Thickness(16, 12, 16, 12),
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    //Margin = new Thickness(0, 20)
+                    Margin = new Thickness(0, 20, 0, 20)
                 };
 
                 var welcomeText = new TextBlock
@@ -183,8 +500,7 @@ namespace kripto
             try
             {
                 System.Diagnostics.Debug.WriteLine("SendButton_Click chaqirildi");
-                //AddMessageToUI("salom","admin",DateTime.UtcNow,true);
-                SendMessage();
+                _ = SendMessageAsync();
             }
             catch (Exception ex)
             {
@@ -224,7 +540,7 @@ namespace kripto
             {
                 if (e.Key == Key.Enter && MessageTextBox != null && !string.IsNullOrWhiteSpace(MessageTextBox.Text))
                 {
-                    SendMessage();
+                    _ = SendMessageAsync();
                 }
             }
             catch (Exception ex)
@@ -237,13 +553,13 @@ namespace kripto
         {
             try
             {
-                // Placeholder logic'ni oddiylashtirish
                 if (PlaceholderText != null && MessageTextBox != null)
                 {
                     if (string.IsNullOrEmpty(MessageTextBox.Text) && !MessageTextBox.IsFocused)
                     {
                         PlaceholderText.Visibility = Visibility.Visible;
-                        PlaceholderText.Text = "Type a message...";
+                        PlaceholderText.Text = chatService?.IsConnected == true ?
+                            "Type a message..." : "Connecting...";
                     }
                     else
                     {
@@ -257,11 +573,14 @@ namespace kripto
             }
         }
 
-        private void SendMessage()
+        /// <summary>
+        /// Xabar yuborish (async)
+        /// </summary>
+        private async Task SendMessageAsync()
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("SendMessage chaqirildi");
+                System.Diagnostics.Debug.WriteLine("SendMessageAsync chaqirildi");
 
                 string messageContent = MessageTextBox?.Text?.Trim() ?? "";
                 if (string.IsNullOrEmpty(messageContent))
@@ -269,12 +588,34 @@ namespace kripto
                     return;
                 }
 
-                // Xabarni UI ga qo'shish
+                if (chatService?.IsConnected != true)
+                {
+                    MessageBox.Show("Server bilan bog'lanish yo'q!", "Xatolik",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(selectedChatUser))
+                {
+                    MessageBox.Show("Xabar yuborish uchun foydalanuvchini tanlang!", "Xatolik",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // O'z xabarimizni UI ga qo'shish
                 AddMessageToChat(messageContent, currentUser, true);
 
-                // Test uchun - javob xabari
-                AddMessageToChat($"Echo: {messageContent}", "Server", false);
+                // Server ga yuborish
+                bool sent = await chatService.SendMessageAsync(selectedChatUser, messageContent);
 
+                if (!sent)
+                {
+                    // Agar yuborilmasa, xabarni o'chirish yoki error ko'rsatish
+                    MessageBox.Show("Xabar yuborilmadi. Qaytadan urinib ko'ring.", "Xatolik",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
+                // TextBox'ni tozalash
                 if (MessageTextBox != null)
                 {
                     MessageTextBox.Text = "";
@@ -286,7 +627,7 @@ namespace kripto
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"SendMessage xatolik: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"SendMessageAsync xatolik: {ex.Message}");
                 MessageBox.Show($"Xabar yuborishda xatolik: {ex.Message}", "Xatolik",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -311,15 +652,19 @@ namespace kripto
 
                 var messageStack = new StackPanel();
 
-                // Sender name
-                var senderText = new TextBlock
+                // Sender name (faqat boshqa userlar uchun)
+                if (!isOwnMessage)
                 {
-                    Text = sender,
-                    FontSize = 12,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
-                    Margin = new Thickness(0, 0, 0, 4)
-                };
+                    var senderText = new TextBlock
+                    {
+                        Text = sender,
+                        FontSize = 12,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
+                        Margin = new Thickness(0, 0, 0, 4)
+                    };
+                    messageStack.Children.Add(senderText);
+                }
 
                 // Message text
                 var messageText = new TextBlock
@@ -337,10 +682,9 @@ namespace kripto
                     FontSize = 11,
                     Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
                     HorizontalAlignment = HorizontalAlignment.Right,
-                    Margin = new Thickness(4)
+                    Margin = new Thickness(0, 4, 0, 0)
                 };
 
-                messageStack.Children.Add(senderText);
                 messageStack.Children.Add(messageText);
                 messageStack.Children.Add(timeText);
 
@@ -395,8 +739,6 @@ namespace kripto
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"❌ RuToken init failed: {ex.Message}");
-
-                // RuToken ishlamasa, fallback user
                 await SetFallbackUserAsync();
             }
         }
@@ -411,7 +753,6 @@ namespace kripto
                     throw new Exception("RuToken helper is null");
                 }
 
-                // "user" label'li token'ni qidirish
                 var userToken = await Task.Run(() =>
                 {
                     try
@@ -428,12 +769,6 @@ namespace kripto
                 if (userToken != null && !string.IsNullOrEmpty(userToken.Data))
                 {
                     currentUser = userToken.Data;
-
-                    await Dispatcher.BeginInvoke(() =>
-                    {
-                        this.Title = $"Kripto Messenger - 🔐 {currentUser} @ {IpAddress}";
-                    });
-
                     System.Diagnostics.Debug.WriteLine($"✅ User token loaded: {currentUser}");
                 }
                 else
@@ -444,8 +779,6 @@ namespace kripto
             catch (Exception tokenEx)
             {
                 System.Diagnostics.Debug.WriteLine($"❌ User token failed: {tokenEx.Message}");
-
-                // "user" token yo'q bo'lsa, boshqa tokenlarni ko'rish
                 await LoadAnyAvailableTokenAsync();
             }
         }
@@ -479,14 +812,8 @@ namespace kripto
                     currentUser = !string.IsNullOrEmpty(firstToken.Data) ?
                                   firstToken.Data : firstToken.Label;
 
-                    await Dispatcher.BeginInvoke(() =>
-                    {
-                        this.Title = $"Kripto Messenger - 🔐 {currentUser} @ {IpAddress}";
-                    });
-
                     System.Diagnostics.Debug.WriteLine($"✅ Alternative token loaded: {currentUser}");
 
-                    // Debug: Barcha tokenlarni ko'rsatish
                     foreach (var token in allTokens)
                     {
                         System.Diagnostics.Debug.WriteLine(
@@ -505,106 +832,21 @@ namespace kripto
             }
         }
 
-
-        private void AddMessageToUI(string sender, string content, DateTime timestamp, bool isFromCurrentUser)
-        {
-            var messageContainer = new Border
-            {
-                Margin = new Thickness(0, 4, 0, 0),
-                MaxWidth = 350
-            };
-
-            var messageBorder = new Border
-            {
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(12, 8, 12, 8),
-            };
-
-            // Alignment va ranglar
-            if (isFromCurrentUser)
-            {
-                messageBorder.Background = new SolidColorBrush(Color.FromRgb(35, 134, 54)); // Yashil
-                messageContainer.HorizontalAlignment = HorizontalAlignment.Right;
-            }
-            else
-            {
-                messageBorder.Background = new SolidColorBrush(Color.FromRgb(33, 38, 45)); // To'q kulrang
-                messageContainer.HorizontalAlignment = HorizontalAlignment.Left;
-            }
-
-            var messagePanel = new StackPanel();
-
-            // Sender name (faqat boshqa userlar uchun)
-            if (!isFromCurrentUser)
-            {
-                var senderText = new TextBlock
-                {
-                    Text = sender,
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
-                    Margin = new Thickness(0, 0, 0, 3)
-                };
-                messagePanel.Children.Add(senderText);
-            }
-
-            // Message content
-            var contentText = new TextBlock
-            {
-                Text = content,
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = Brushes.White,
-                FontSize = 13
-            };
-
-            // Time
-            var timeText = new TextBlock
-            {
-                Text = timestamp.ToString("HH:mm"),
-                FontSize = 9,
-                Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
-                Margin = new Thickness(0, 3, 0, 0),
-                HorizontalAlignment = isFromCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
-            };
-
-            messagePanel.Children.Add(contentText);
-            messagePanel.Children.Add(timeText);
-            messageBorder.Child = messagePanel;
-            messageContainer.Child = messageBorder;
-
-            MessagesPanel.Children.Add(messageContainer);
-            MessagesScrollViewer.ScrollToEnd();
-        }
-
-
         private async Task SetFallbackUserAsync()
         {
             try
             {
                 await Task.Run(() =>
                 {
-                    // Environment username'ni ishlatish
                     string envUser = Environment.UserName;
                     if (!string.IsNullOrEmpty(envUser) && envUser.Length >= 3)
                     {
                         currentUser = envUser;
-
-                        Dispatcher.BeginInvoke(() =>
-                        {
-                            this.Title = $"Kripto Messenger - 👤 {currentUser} @ {IpAddress}";
-                        });
-
                         System.Diagnostics.Debug.WriteLine($"✅ Fallback user set: {currentUser}");
                     }
                     else
                     {
                         currentUser = "Unknown User";
-
-                        Dispatcher.BeginInvoke(() =>
-                        {
-                            this.Title = $"Kripto Messenger - ❓ Unknown @ {IpAddress}";
-                        });
-
                         System.Diagnostics.Debug.WriteLine("⚠️ No user identification available");
                     }
                 });
@@ -613,7 +855,6 @@ namespace kripto
             {
                 System.Diagnostics.Debug.WriteLine($"SetFallbackUserAsync xatolik: {ex.Message}");
                 currentUser = "Default User";
-                this.Title = $"Kripto Messenger - Default @ {IpAddress}";
             }
         }
     }
