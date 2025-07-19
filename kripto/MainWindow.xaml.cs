@@ -28,9 +28,10 @@ namespace kripto
         private ChatService? chatService;
 
         // Properties
-        private string currentUser = "Unknown User";
+        private string currentUser = "admin";
         private string selectedChatUser = string.Empty;
         private List<string> onlineUsers = new List<string>();
+        private Dictionary<string, List<(string message, bool isFromMe, DateTime time)>> chatHistory = new();
 
         public string IpAddress { get; private set; } = string.Empty;
         public string Password { get; private set; } = string.Empty;
@@ -78,7 +79,6 @@ namespace kripto
 
             try
             {
-                // UI elementlarini tekshirish
                 if (MessagesPanel == null)
                 {
                     System.Diagnostics.Debug.WriteLine("⚠️ MessagesPanel null!");
@@ -107,6 +107,7 @@ namespace kripto
                 // UI ni yangilash
                 UpdatePlaceholder();
                 UpdateUIState();
+                UpdateChatHeader();
 
                 System.Diagnostics.Debug.WriteLine("MainWindow_Loaded muvaffaqiyatli tugadi");
             }
@@ -124,7 +125,6 @@ namespace kripto
 
             try
             {
-                // Confirmation dialog
                 var result = MessageBox.Show("Dasturdan chiqishni xohlaysizmi?", "Tasdiqlash",
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
 
@@ -166,9 +166,9 @@ namespace kripto
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("🔌 Chat service ishga tushirilmoqda...");
+                System.Diagnostics.Debug.WriteLine($"🔌 Chat service ishga tushirilmoqda: {IpAddress}:8099");
 
-                // ChatService yaratish
+                // ChatService yaratish - kiritilgan IP manzilni ishlatish
                 chatService = new ChatService(IpAddress, "8099", currentUser);
 
                 // Event handlerlar
@@ -177,11 +177,18 @@ namespace kripto
                 chatService.ConnectionStatusChanged += OnConnectionStatusChanged;
                 chatService.ErrorOccurred += OnErrorOccurred;
 
+                // Avval server mavjudligini tekshirish
+                bool serverExists = await TestServerAsync(IpAddress, "8099");
+                if (!serverExists)
+                {
+                    throw new Exception($"Server {IpAddress}:8099 ga ulanib bo'lmadi. Server ishlamayotgan bo'lishi mumkin.");
+                }
+
                 // Authentication
                 bool authenticated = await chatService.AuthenticateAsync(Password);
                 if (!authenticated)
                 {
-                    throw new Exception("Authentication failed");
+                    throw new Exception("Authentication failed - parol noto'g'ri bo'lishi mumkin");
                 }
 
                 // Connection
@@ -192,6 +199,11 @@ namespace kripto
                 }
 
                 System.Diagnostics.Debug.WriteLine("✅ Chat service muvaffaqiyatli ishga tushdi");
+
+                Dispatcher.Invoke(() =>
+                {
+                    this.Title = $"Kripto Messenger - 🟢 Connected - {currentUser}@{IpAddress}";
+                });
             }
             catch (Exception ex)
             {
@@ -199,11 +211,80 @@ namespace kripto
 
                 Dispatcher.Invoke(() =>
                 {
-                    MessageBox.Show($"Server bilan bog'lanishda xatolik:\n{ex.Message}\n\nOffline rejimda davom etasiz.",
+                    string detailedError = ex.Message;
+
+                    if (ex.Message.Contains("127.0.0.1") || ex.Message.Contains("localhost"))
+                    {
+                        detailedError += "\n\n💡 Agar server localhost'da ishlamayotgan bo'lsa:\n" +
+                                       "• Server dasturini ishga tushiring\n" +
+                                       "• To'g'ri port (8099) ishlatilayotganini tekshiring\n" +
+                                       "• Firewall server portini bloklamayotganini tekshiring";
+                    }
+                    else
+                    {
+                        detailedError += $"\n\n💡 Server {IpAddress}:8099 mavjud emasligining sabablari:\n" +
+                                       "• Server o'chiq bo'lishi mumkin\n" +
+                                       "• IP manzil noto'g'ri kiritilgan\n" +
+                                       "• Network bog'lanish muammosi\n" +
+                                       "• Firewall portni bloklagan";
+                    }
+
+                    MessageBox.Show($"Server bilan bog'lanishda xatolik:\n\n{detailedError}",
                         "Ulanish xatoligi", MessageBoxButton.OK, MessageBoxImage.Warning);
 
-                    this.Title = $"Kripto Messenger - 🔴 Offline - {currentUser}";
+                    this.Title = $"Kripto Messenger - 🔴 Offline - {currentUser}@{IpAddress}";
+
+                    // Offline mode uchun test userlarni qo'shish
+                    ShowOfflineTestUsers();
                 });
+            }
+        }
+
+        /// <summary>
+        /// Offline rejimda test userlarni ko'rsatish
+        /// </summary>
+        private void ShowOfflineTestUsers()
+        {
+            try
+            {
+                // Test userlar
+                onlineUsers = new List<string> { "TestUser1", "TestUser2", "Admin", "Alice", "Bob" };
+                UpdateUsersPanel();
+
+                // Notification
+                AddSystemMessage("🔴 Offline rejimda ishlayapman. Test userlar bilan xabar almashishingiz mumkin.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ShowOfflineTestUsers xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Server mavjudligini oddiy tekshirish
+        /// </summary>
+        private async Task<bool> TestServerAsync(string ip, string port)
+        {
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(5);
+
+                var response = await client.GetAsync($"http://{ip}:{port}/");
+                return true;
+            }
+            catch (System.Net.Http.HttpRequestException)
+            {
+                return false;
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"TestServer xatolik: {ex.Message}");
+                return false;
             }
         }
 
@@ -217,12 +298,22 @@ namespace kripto
                 Dispatcher.Invoke(() =>
                 {
                     bool isOwnMessage = fromUser.Equals(currentUser, StringComparison.OrdinalIgnoreCase);
-                    AddMessageToChat(messageText, fromUser, isOwnMessage);
 
-                    // Agar boshqa userdan xabar kelsa, chatni o'sha user bilan ochish
-                    if (!isOwnMessage && string.IsNullOrEmpty(selectedChatUser))
+                    // Chat history'ga qo'shish
+                    AddToChatHistory(fromUser, messageText, !isOwnMessage, timestamp);
+
+                    // Agar ushbu user bilan chat ochiq bo'lsa, xabarni ko'rsatish
+                    if (selectedChatUser == fromUser || isOwnMessage)
                     {
-                        SelectChatUser(fromUser);
+                        AddMessageToChat(messageText, fromUser, isOwnMessage);
+                    }
+                    else
+                    {
+                        // Boshqa userdan xabar kelsa, notification
+                        AddSystemMessage($"💬 {fromUser}dan yangi xabar keldi!");
+
+                        // User button'ni highlight qilish (unread indicator)
+                        HighlightUserWithNewMessage(fromUser);
                     }
                 });
             }
@@ -243,6 +334,8 @@ namespace kripto
                 {
                     onlineUsers = users.Where(u => !u.Equals(currentUser, StringComparison.OrdinalIgnoreCase)).ToList();
                     UpdateUsersPanel();
+
+                    AddSystemMessage($"👥 Online users yangilandi: {onlineUsers.Count} foydalanuvchi");
                 });
             }
             catch (Exception ex)
@@ -261,8 +354,11 @@ namespace kripto
                 Dispatcher.Invoke(() =>
                 {
                     string status = isConnected ? "🟢 Connected" : "🔴 Disconnected";
-                    this.Title = $"Kripto Messenger - {status} - {currentUser}";
+                    this.Title = $"Kripto Messenger - {status} - {currentUser}@{IpAddress}";
                     UpdateUIState();
+
+                    string statusMessage = isConnected ? "✅ Server bilan bog'lanish o'rnatildi" : "❌ Server bilan bog'lanish uzildi";
+                    AddSystemMessage(statusMessage);
                 });
             }
             catch (Exception ex)
@@ -281,13 +377,7 @@ namespace kripto
                 Dispatcher.Invoke(() =>
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠️ Chat error: {errorMessage}");
-
-                    // Critical xatoliklarni foydalanuvchiga ko'rsatish
-                    if (errorMessage.Contains("Authentication") || errorMessage.Contains("Connection"))
-                    {
-                        MessageBox.Show($"Chat xatoligi: {errorMessage}", "Xatolik",
-                            MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
+                    AddSystemMessage($"⚠️ Xatolik: {errorMessage}");
                 });
             }
             catch (Exception ex)
@@ -333,7 +423,8 @@ namespace kripto
                 Margin = new Thickness(12, 4, 12, 4),
                 Padding = new Thickness(12, 8, 12, 8),
                 CornerRadius = new CornerRadius(6),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Tag = userName // User name'ni tag sifatida saqlash
             };
 
             var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -378,11 +469,23 @@ namespace kripto
                 Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129))
             };
 
+            // Unread indicator (agar yangi xabar bo'lsa)
+            var unreadIndicator = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
+                Margin = new Thickness(8, 0, 0, 0),
+                Visibility = HasUnreadMessages(userName) ? Visibility.Visible : Visibility.Collapsed
+            };
+
             userInfo.Children.Add(nameText);
             userInfo.Children.Add(statusText);
 
             stackPanel.Children.Add(avatar);
             stackPanel.Children.Add(userInfo);
+            stackPanel.Children.Add(unreadIndicator);
             userBorder.Child = stackPanel;
 
             // Click event
@@ -398,32 +501,185 @@ namespace kripto
         {
             try
             {
+                string previousUser = selectedChatUser;
                 selectedChatUser = userName;
 
+                System.Diagnostics.Debug.WriteLine($"Chat user selected: {userName}");
+
                 // Chat header'ni yangilash
-                if (ChatHeaderTextBlock != null)
-                {
-                    ChatHeaderTextBlock.Text = userName;
-                }
-
-                if (ChatStatusText != null)
-                {
-                    ChatStatusText.Text = "Online";
-                }
-
-                if (ChatAvatarText != null)
-                {
-                    ChatAvatarText.Text = userName.Length > 0 ? userName[0].ToString().ToUpper() : "?";
-                }
+                UpdateChatHeader();
 
                 // Users panel'ni yangilash (selection highlight)
                 UpdateUsersPanel();
 
-                System.Diagnostics.Debug.WriteLine($"Chat user selected: {userName}");
+                // Chat history'ni yuklash
+                LoadChatHistory(userName);
+
+                // Unread messages'ni clear qilish
+                ClearUnreadMessages(userName);
+
+                // Agar user o'zgargan bo'lsa, welcome message
+                if (previousUser != userName)
+                {
+                    AddSystemMessage($"💬 {userName} bilan suhbat boshlandi");
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"SelectChatUser xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Chat header'ni yangilash
+        /// </summary>
+        private void UpdateChatHeader()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(selectedChatUser))
+                {
+                    if (ChatHeaderTextBlock != null)
+                        ChatHeaderTextBlock.Text = "Select a conversation";
+                    if (ChatStatusText != null)
+                        ChatStatusText.Text = "Click on a user to start chatting";
+                    if (ChatAvatarText != null)
+                        ChatAvatarText.Text = "?";
+                }
+                else
+                {
+                    if (ChatHeaderTextBlock != null)
+                        ChatHeaderTextBlock.Text = selectedChatUser;
+                    if (ChatStatusText != null)
+                        ChatStatusText.Text = "Online";
+                    if (ChatAvatarText != null)
+                        ChatAvatarText.Text = selectedChatUser.Length > 0 ? selectedChatUser[0].ToString().ToUpper() : "?";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateChatHeader xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Chat history'ni yuklash
+        /// </summary>
+        private void LoadChatHistory(string userName)
+        {
+            try
+            {
+                if (MessagesPanel == null) return;
+
+                // Avvalgi xabarlarni tozalash
+                MessagesPanel.Children.Clear();
+
+                // Agar ushbu user bilan history bo'lsa, yuklash
+                if (chatHistory.ContainsKey(userName))
+                {
+                    var messages = chatHistory[userName];
+                    foreach (var msg in messages)
+                    {
+                        AddMessageToChat(msg.message, msg.isFromMe ? currentUser : userName, msg.isFromMe);
+                    }
+                }
+
+                // Scroll pastga
+                MessagesScrollViewer?.ScrollToBottom();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LoadChatHistory xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Chat history'ga xabar qo'shish
+        /// </summary>
+        private void AddToChatHistory(string userName, string message, bool isFromThem, DateTime timestamp)
+        {
+            try
+            {
+                if (!chatHistory.ContainsKey(userName))
+                {
+                    chatHistory[userName] = new List<(string, bool, DateTime)>();
+                }
+
+                chatHistory[userName].Add((message, !isFromThem, timestamp));
+
+                // History'ni 100 xabargacha cheklash
+                if (chatHistory[userName].Count > 100)
+                {
+                    chatHistory[userName].RemoveAt(0);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AddToChatHistory xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Yangi xabar bilan user'ni highlight qilish
+        /// </summary>
+        private void HighlightUserWithNewMessage(string userName)
+        {
+            // Unread messages uchun simple tracking
+            // Real implementation'da database yoki file'da saqlash mumkin
+        }
+
+        /// <summary>
+        /// User'da unread messages borligini tekshirish
+        /// </summary>
+        private bool HasUnreadMessages(string userName)
+        {
+            // Simple implementation - real app'da proper tracking kerak
+            return false;
+        }
+
+        /// <summary>
+        /// Unread messages'ni clear qilish
+        /// </summary>
+        private void ClearUnreadMessages(string userName)
+        {
+            // Implementation for clearing unread status
+        }
+
+        /// <summary>
+        /// System message qo'shish
+        /// </summary>
+        private void AddSystemMessage(string message)
+        {
+            try
+            {
+                if (MessagesPanel == null) return;
+
+                var systemMessage = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(31, 41, 55)),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12, 8, 12, 8),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(20, 4, 20, 4)
+                };
+
+                var messageText = new TextBlock
+                {
+                    Text = message,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    TextAlignment = TextAlignment.Center
+                };
+
+                systemMessage.Child = messageText;
+                MessagesPanel.Children.Add(systemMessage);
+
+                MessagesScrollViewer?.ScrollToBottom();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AddSystemMessage xatolik: {ex.Message}");
             }
         }
 
@@ -435,25 +691,26 @@ namespace kripto
             try
             {
                 bool isConnected = chatService?.IsConnected == true;
+                bool hasSelectedUser = !string.IsNullOrEmpty(selectedChatUser);
 
                 if (SendButton != null)
                 {
-                    SendButton.IsEnabled = isConnected;
+                    SendButton.IsEnabled = hasSelectedUser; // Offline'da ham yozish mumkin
                 }
 
                 if (MessageTextBox != null)
                 {
-                    MessageTextBox.IsEnabled = isConnected;
+                    MessageTextBox.IsEnabled = hasSelectedUser;
                 }
 
                 if (uplodeButton != null)
                 {
-                    uplodeButton.IsEnabled = isConnected;
+                    uplodeButton.IsEnabled = isConnected && hasSelectedUser;
                 }
 
                 if (callButton != null)
                 {
-                    callButton.IsEnabled = isConnected;
+                    callButton.IsEnabled = isConnected && hasSelectedUser;
                 }
             }
             catch (Exception ex)
@@ -477,7 +734,7 @@ namespace kripto
 
                 var welcomeText = new TextBlock
                 {
-                    Text = $"Welcome to Kripto Messenger! 🔐\nConnected to: {IpAddress ?? "Unknown"}",
+                    Text = $"Welcome to Kripto Messenger! 🔐\nConnecting to: {IpAddress ?? "Unknown"}",
                     FontSize = 14,
                     Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252)),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -558,8 +815,19 @@ namespace kripto
                     if (string.IsNullOrEmpty(MessageTextBox.Text) && !MessageTextBox.IsFocused)
                     {
                         PlaceholderText.Visibility = Visibility.Visible;
-                        PlaceholderText.Text = chatService?.IsConnected == true ?
-                            "Type a message..." : "Connecting...";
+
+                        if (string.IsNullOrEmpty(selectedChatUser))
+                        {
+                            PlaceholderText.Text = "Select a user to start chatting...";
+                        }
+                        else if (chatService?.IsConnected == true)
+                        {
+                            PlaceholderText.Text = $"Type a message to {selectedChatUser}...";
+                        }
+                        else
+                        {
+                            PlaceholderText.Text = $"Type a message to {selectedChatUser} (offline)...";
+                        }
                     }
                     else
                     {
@@ -588,13 +856,6 @@ namespace kripto
                     return;
                 }
 
-                if (chatService?.IsConnected != true)
-                {
-                    MessageBox.Show("Server bilan bog'lanish yo'q!", "Xatolik",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
                 if (string.IsNullOrEmpty(selectedChatUser))
                 {
                     MessageBox.Show("Xabar yuborish uchun foydalanuvchini tanlang!", "Xatolik",
@@ -605,14 +866,27 @@ namespace kripto
                 // O'z xabarimizni UI ga qo'shish
                 AddMessageToChat(messageContent, currentUser, true);
 
-                // Server ga yuborish
-                bool sent = await chatService.SendMessageAsync("user1", messageContent);
+                // Chat history'ga qo'shish
+                AddToChatHistory(selectedChatUser, messageContent, false, DateTime.Now);
 
-                if (!sent)
+                if (chatService?.IsConnected == true)
                 {
-                    // Agar yuborilmasa, xabarni o'chirish yoki error ko'rsatish
-                    MessageBox.Show("Xabar yuborilmadi. Qaytadan urinib ko'ring.", "Xatolik",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    // Server ga yuborish
+                    bool sent = await chatService.SendMessageAsync(selectedChatUser, messageContent);
+
+                    if (!sent)
+                    {
+                        AddSystemMessage("⚠️ Xabar yuborilmadi - server bilan bog'lanish yo'q");
+                    }
+                }
+                else
+                {
+                    // Offline mode - test javob
+                    await Task.Delay(1000); // Simulate network delay
+                    string response = GenerateTestResponse(messageContent);
+                    AddMessageToChat(response, selectedChatUser, false);
+                    AddToChatHistory(selectedChatUser, response, true, DateTime.Now);
+                    AddSystemMessage("📱 Test javob (offline mode)");
                 }
 
                 // TextBox'ni tozalash
@@ -631,6 +905,27 @@ namespace kripto
                 MessageBox.Show($"Xabar yuborishda xatolik: {ex.Message}", "Xatolik",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Test javob generatsiya qilish (offline mode uchun)
+        /// </summary>
+        private string GenerateTestResponse(string originalMessage)
+        {
+            var responses = new[]
+            {
+                $"Sizning '{originalMessage}' xabaringizni qabul qildim!",
+                "Rahmat xabaringiz uchun!",
+                "Qanday hollar?",
+                "Yaxshi, tushundim.",
+                "Bu qiziqarli!",
+                "Ha, to'g'ri aytasiz.",
+                "Menga ham shunday tuyuladi.",
+                "Keling, buni muhokama qilaylik."
+            };
+
+            var random = new Random();
+            return responses[random.Next(responses.Length)];
         }
 
         private void AddMessageToChat(string message, string sender, bool isOwnMessage)
@@ -838,7 +1133,7 @@ namespace kripto
             {
                 await Task.Run(() =>
                 {
-                    string envUser = Environment.UserName;
+                    string envUser = "admin";
                     if (!string.IsNullOrEmpty(envUser) && envUser.Length >= 3)
                     {
                         currentUser = envUser;
