@@ -31,7 +31,8 @@ namespace kripto
 
         public MainWindow()
         {
-           // chatService.TestWebSocketAsync(token);
+
+
             try
             {
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor boshlandi");
@@ -46,6 +47,12 @@ namespace kripto
                 this.Closing += MainWindow_Closing;
 
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor tugadi");
+                var _token = chatService.GetAuthTokenAsync();
+                //token = _token.Result;
+                // chatService.TestWebSocketAsync(token);
+
+                chatService.ListenForMessagesAsync();
+
             }
             catch (Exception ex)
             {

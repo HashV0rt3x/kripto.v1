@@ -104,7 +104,7 @@ namespace kripto.Helpers
             }
         }
 
-        static async Task ListenForMessagesAsync()
+        public static async Task ListenForMessagesAsync()
         {
             var buffer = new byte[4096];
 
@@ -139,7 +139,7 @@ namespace kripto.Helpers
             }
         }
 
-        static async Task SendTestMessageAsync()
+        public static async Task SendTestMessageAsync()
         {
             try
             {
@@ -176,7 +176,7 @@ namespace kripto.Helpers
             }
         }
 
-        static async Task SendPingAsync()
+        public static async Task SendPingAsync()
         {
             if (webSocket?.State == WebSocketState.Open)
             {
@@ -203,7 +203,7 @@ namespace kripto.Helpers
             }
         }
 
-        static async Task SendCustomMessageAsync(string toUser, string text)
+        public static async Task SendCustomMessageAsync(string toUser, string text)
         {
             if (webSocket?.State == WebSocketState.Open)
             {
@@ -237,7 +237,7 @@ namespace kripto.Helpers
             }
         }
 
-        static async Task GetOnlineUsersAsync()
+        public static async Task GetOnlineUsersAsync()
         {
             if (webSocket?.State == WebSocketState.Open)
             {
