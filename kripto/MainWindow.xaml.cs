@@ -1,5 +1,7 @@
 ﻿using kripto.Helpers;
 using kripto.Security;
+using kripto.Services;
+using kripto.Models;
 using kripto.Windows;
 using System;
 using System.Collections.Generic;
@@ -15,6 +17,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace kripto
 {
@@ -26,11 +29,14 @@ namespace kripto
         // Services
         private RutokenHelper? rutokenHelper;
         private ChatService? chatService;
+        private UserApiService? userApiService;
+        private DispatcherTimer? refreshTimer;
 
         // Properties
         private string currentUser = "admin";
         private string selectedChatUser = string.Empty;
         private List<string> onlineUsers = new List<string>();
+        private List<OnlineUserDto> onlineUsersFromApi = new List<OnlineUserDto>();
         private Dictionary<string, List<(string message, bool isFromMe, DateTime time)>> chatHistory = new();
 
         public string IpAddress { get; private set; } = string.Empty;
@@ -49,6 +55,11 @@ namespace kripto
                 // Window events
                 this.Loaded += MainWindow_Loaded;
                 this.Closing += MainWindow_Closing;
+
+                // Timer o'rnatish (5 soniyada bir API'dan userlarni yangilash)
+                refreshTimer = new DispatcherTimer();
+                refreshTimer.Interval = TimeSpan.FromSeconds(5);
+                refreshTimer.Tick += RefreshTimer_Tick;
 
                 System.Diagnostics.Debug.WriteLine("MainWindow constructor tugadi");
             }
@@ -71,6 +82,36 @@ namespace kripto
 
             System.Diagnostics.Debug.WriteLine($"Connection info set: {ipAddress}, {password.Length} chars");
             this.Title = $"Kripto Messenger - Connecting to {ipAddress}";
+
+            // UserApiService'ni yaratish
+            InitializeUserApiService();
+
+            RuToken.InitializeRutoken();
+            RuToken.GetTokenStatus();
+
+
+        }
+
+        /// <summary>
+        /// UserApiService'ni ishga tushirish
+        /// </summary>
+        private void InitializeUserApiService()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(IpAddress))
+                {
+                    // Backend API'ning base URL'ini o'rnatish
+                    string apiBaseUrl = $"http://{IpAddress}:5000"; // Port'ni o'zingiznikiga o'zgartiring
+                    userApiService = new UserApiService(apiBaseUrl);
+
+                    System.Diagnostics.Debug.WriteLine($"UserApiService yaratildi: {apiBaseUrl}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"InitializeUserApiService xatolik: {ex.Message}");
+            }
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -104,10 +145,16 @@ namespace kripto
                 // Chat service'ni ishga tushirish
                 await InitializeChatServiceAsync();
 
+                // API token o'rnatish va userlarni yuklash
+                await InitializeApiIntegrationAsync();
+
                 // UI ni yangilash
                 UpdatePlaceholder();
                 UpdateUIState();
                 UpdateChatHeader();
+
+                // Timer boshlash
+                refreshTimer?.Start();
 
                 System.Diagnostics.Debug.WriteLine("MainWindow_Loaded muvaffaqiyatli tugadi");
             }
@@ -116,6 +163,54 @@ namespace kripto
                 System.Diagnostics.Debug.WriteLine($"MainWindow_Loaded xatolik: {ex.Message}");
                 MessageBox.Show($"Dastur yuklanishida xatolik: {ex.Message}", "Xatolik",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// API integratsiyasini ishga tushirish
+        /// </summary>
+        private async Task InitializeApiIntegrationAsync()
+        {
+            try
+            {
+                if (userApiService == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("UserApiService null, API integratsiyasi o'tkazib yuborildi");
+                    return;
+                }
+
+                // Token olish (agar ChatService'dan token olinsa)
+                if (chatService != null)
+                {
+                    try
+                    {
+                        // Agar ChatService'da token olish metodi bo'lsa
+                        // var token = await chatService.GetAuthTokenAsync();
+                        // if (!string.IsNullOrEmpty(token))
+                        // {
+                        //     userApiService.SetAuthToken(token);
+                        // }
+
+                        // Hozircha test token
+                        userApiService.SetAuthToken("test_token_123");
+                        System.Diagnostics.Debug.WriteLine("API token o'rnatildi");
+
+                        userApiService = new UserApiService(IpAddress);
+
+                        Console.WriteLine(userApiService.GetAllUsersAsync);
+                    }
+                    catch (Exception tokenEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Token olishda xatolik: {tokenEx.Message}");
+                    }
+                }
+
+                // Dastlabki userlarni yuklash
+                await LoadUsersFromApiAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"InitializeApiIntegrationAsync xatolik: {ex.Message}");
             }
         }
 
@@ -134,6 +229,9 @@ namespace kripto
                     return;
                 }
 
+                // Timer to'xtatish
+                refreshTimer?.Stop();
+
                 // Resurslarni tozalash
                 _ = Task.Run(async () =>
                 {
@@ -145,6 +243,7 @@ namespace kripto
                             chatService.Dispose();
                         }
 
+                        userApiService?.Dispose();
                         rutokenHelper?.Dispose();
                     }
                     catch (Exception ex)
@@ -156,6 +255,83 @@ namespace kripto
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"MainWindow_Closing xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Timer tick - API'dan userlarni yangilash
+        /// </summary>
+        private async void RefreshTimer_Tick(object? sender, EventArgs e)
+        {
+            try
+            {
+                await LoadUsersFromApiAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshTimer_Tick xatolik: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// API'dan userlarni yuklash
+        /// </summary>
+        private async Task LoadUsersFromApiAsync()
+        {
+            try
+            {
+                if (userApiService == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("UserApiService null, fallback users ishlatiladi");
+
+                    // Fallback - eski test userlar
+                    if (onlineUsers.Count == 0)
+                    {
+                        onlineUsers = new List<string> { "TestUser1", "TestUser2", "Admin", "Alice", "Bob" };
+                        Dispatcher.Invoke(() => UpdateUsersPanel());
+                    }
+                    return;
+                }
+
+                // API'dan online userlarni olish
+                var apiUsers = await userApiService.GetOnlineUsersAsync();
+                System.Diagnostics.Debug.WriteLine($"API'dan {apiUsers.Count} user olindi");
+
+                if (apiUsers.Count > 0)
+                {
+                    onlineUsersFromApi = apiUsers;
+
+                    // String list'ni ham yangilash (eski kod bilan uygunlik uchun)
+                    onlineUsers = apiUsers
+                        .Where(u => !u.UserName.Equals(currentUser, StringComparison.OrdinalIgnoreCase))
+                        .Select(u => u.UserName)
+                        .ToList();
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        UpdateUsersPanel();
+                        AddSystemMessage($"👥 API'dan {apiUsers.Count} online user yangilandi");
+                    });
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("API'dan userlar olinmadi, mavjud ro'yxat saqlanadi");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LoadUsersFromApiAsync xatolik: {ex.Message}");
+
+                // API xatolik bo'lsa, fallback userlarni ko'rsatish
+                if (onlineUsers.Count == 0)
+                {
+                    onlineUsers = new List<string> { "TestUser1", "TestUser2", "Admin" };
+                    Dispatcher.Invoke(() =>
+                    {
+                        UpdateUsersPanel();
+                        AddSystemMessage("⚠️ API'dan userlar olinmadi, test userlar ko'rsatildi");
+                    });
+                }
             }
         }
 
@@ -387,21 +563,37 @@ namespace kripto
         }
 
         /// <summary>
-        /// Users panel'ni yangilash
+        /// Users panel'ni yangilash (yangi API integratsiyasi bilan)
         /// </summary>
         private void UpdateUsersPanel()
         {
             try
             {
-                //if (UsersPanel == null) return;
+                if (UsersPanel == null) return;
 
-                //UsersPanel.Children.Clear();
+                UsersPanel.Children.Clear();
 
-                //foreach (string user in onlineUsers)
-                //{
-                //    var userButton = CreateUserButton(user);
-                //    UsersPanel.Children.Add(userButton);
-                //}
+                // Agar API'dan userlar bo'lsa, ularni ishlatish
+                if (onlineUsersFromApi.Count > 0)
+                {
+                    foreach (var apiUser in onlineUsersFromApi)
+                    {
+                        if (!apiUser.UserName.Equals(currentUser, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var userControl = CreateUserControlFromApi(apiUser);
+                            UsersPanel.Children.Add(userControl);
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback - string list'dan user buttonlar yaratish
+                    foreach (string user in onlineUsers)
+                    {
+                        var userButton = CreateUserButton(user);
+                        UsersPanel.Children.Add(userButton);
+                    }
+                }
 
                 System.Diagnostics.Debug.WriteLine($"Users panel yangilandi: {onlineUsers.Count} users");
             }
@@ -412,7 +604,99 @@ namespace kripto
         }
 
         /// <summary>
-        /// User button yaratish
+        /// API'dan kelgan user uchun control yaratish
+        /// </summary>
+        private Border CreateUserControlFromApi(OnlineUserDto user)
+        {
+            var userBorder = new Border
+            {
+                Background = new SolidColorBrush(user.UserName == selectedChatUser ?
+                    Color.FromRgb(35, 134, 54) : Color.FromRgb(33, 38, 45)),
+                Margin = new Thickness(12, 4, 12, 4),
+                Padding = new Thickness(12, 8, 12, 8),
+                CornerRadius = new CornerRadius(6),
+                Cursor = Cursors.Hand,
+                Tag = user.UserName
+            };
+
+            var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
+
+            // Avatar
+            var avatar = new Border
+            {
+                Width = 32,
+                Height = 32,
+                CornerRadius = new CornerRadius(16),
+                Background = new SolidColorBrush(Color.FromRgb(35, 134, 54)),
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+
+            var avatarText = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(user.UserName) ? "?" : user.UserName[0].ToString().ToUpper(),
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            avatar.Child = avatarText;
+
+            // User info
+            var userInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
+            var nameText = new TextBlock
+            {
+                Text = user.UserName,
+                FontSize = 14,
+                FontWeight = FontWeights.Medium,
+                Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252))
+            };
+
+            var statusText = new TextBlock
+            {
+                Text = user.ConnectionCount > 1 ? $"Online ({user.ConnectionCount} sessions)" : "Online",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129))
+            };
+
+            // Connection time
+            var connectedText = new TextBlock
+            {
+                Text = $"Connected: {user.ConnectedAt:HH:mm}",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158))
+            };
+
+            userInfo.Children.Add(nameText);
+            userInfo.Children.Add(statusText);
+            userInfo.Children.Add(connectedText);
+
+            // Unread indicator
+            var unreadIndicator = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
+                Margin = new Thickness(8, 0, 0, 0),
+                Visibility = HasUnreadMessages(user.UserName) ? Visibility.Visible : Visibility.Collapsed
+            };
+
+            stackPanel.Children.Add(avatar);
+            stackPanel.Children.Add(userInfo);
+            stackPanel.Children.Add(unreadIndicator);
+            userBorder.Child = stackPanel;
+
+            // Click event
+            userBorder.MouseLeftButtonUp += (s, e) => SelectChatUser(user.UserName);
+
+            return userBorder;
+        }
+
+        /// <summary>
+        /// User button yaratish (fallback string list uchun)
         /// </summary>
         private Border CreateUserButton(string userName)
         {
@@ -424,7 +708,7 @@ namespace kripto
                 Padding = new Thickness(12, 8, 12, 8),
                 CornerRadius = new CornerRadius(6),
                 Cursor = Cursors.Hand,
-                Tag = userName // User name'ni tag sifatida saqlash
+                Tag = userName
             };
 
             var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -469,7 +753,10 @@ namespace kripto
                 Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129))
             };
 
-            // Unread indicator (agar yangi xabar bo'lsa)
+            userInfo.Children.Add(nameText);
+            userInfo.Children.Add(statusText);
+
+            // Unread indicator
             var unreadIndicator = new Border
             {
                 Width = 10,
@@ -479,9 +766,6 @@ namespace kripto
                 Margin = new Thickness(8, 0, 0, 0),
                 Visibility = HasUnreadMessages(userName) ? Visibility.Visible : Visibility.Collapsed
             };
-
-            userInfo.Children.Add(nameText);
-            userInfo.Children.Add(statusText);
 
             stackPanel.Children.Add(avatar);
             stackPanel.Children.Add(userInfo);
@@ -550,8 +834,21 @@ namespace kripto
                 {
                     if (ChatHeaderTextBlock != null)
                         ChatHeaderTextBlock.Text = selectedChatUser;
-                    if (ChatStatusText != null)
-                        ChatStatusText.Text = "Online";
+
+                    // API'dan user ma'lumotlari bo'lsa, to'liq ma'lumot ko'rsatish
+                    var apiUser = onlineUsersFromApi.FirstOrDefault(u => u.UserName == selectedChatUser);
+                    if (apiUser != null)
+                    {
+                        if (ChatStatusText != null)
+                            ChatStatusText.Text = apiUser.ConnectionCount > 1 ?
+                                $"Online ({apiUser.ConnectionCount} sessions)" : "Online";
+                    }
+                    else
+                    {
+                        if (ChatStatusText != null)
+                            ChatStatusText.Text = "Online";
+                    }
+
                     if (ChatAvatarText != null)
                         ChatAvatarText.Text = selectedChatUser.Length > 0 ? selectedChatUser[0].ToString().ToUpper() : "?";
                 }
@@ -702,16 +999,6 @@ namespace kripto
                 {
                     MessageTextBox.IsEnabled = hasSelectedUser;
                 }
-
-                //if (uplodeButton != null)
-                //{
-                //    uplodeButton.IsEnabled = isConnected && hasSelectedUser;
-                //}
-
-                //if (callButton != null)
-                //{
-                //    callButton.IsEnabled = isConnected && hasSelectedUser;
-                //}
             }
             catch (Exception ex)
             {
