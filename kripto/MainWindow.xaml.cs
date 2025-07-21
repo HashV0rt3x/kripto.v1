@@ -31,6 +31,7 @@ namespace kripto
         private ChatService? chatService;
         private UserApiService? userApiService;
         private DispatcherTimer? refreshTimer;
+        private ChatHistoryService? chatHistoryService;
 
         // Properties
         private string currentUser = "admin";
@@ -378,6 +379,10 @@ namespace kripto
                 }
 
                 authtoken = authenticated;
+
+                //chatHistoryService = new ChatHistoryService(authtoken);
+
+                var his =await ChatHistoryService.GetHistoryAsync(targetUser: "user1",authtoken);
 
                 // Connection
                 bool connected = await chatService.ConnectAsync();
@@ -873,7 +878,7 @@ namespace kripto
         /// <summary>
         /// Chat history'ni yuklash
         /// </summary>
-        private void LoadChatHistory(string userName)
+        private async Task LoadChatHistory(string userName)
         {
             try
             {
@@ -883,14 +888,15 @@ namespace kripto
                 MessagesPanel.Children.Clear();
 
                 // Agar ushbu user bilan history bo'lsa, yuklash
-                if (chatHistory.ContainsKey(userName))
-                {
-                    var messages = chatHistory[userName];
+                //if (chatHistory.ContainsKey(userName))
+                //{
+                    var messages = await ChatHistoryService.GetHistoryAsync(userName, authtoken);
+
                     foreach (var msg in messages)
                     {
-                        AddMessageToChat(msg.message, msg.isFromMe ? currentUser : userName, msg.isFromMe);
+                        AddMessageToChat(msg.Value,  userName, msg.Key == currentUser ? true : false);
                     }
-                }
+                //}
 
                 // Scroll pastga
                 MessagesScrollViewer?.ScrollToBottom();

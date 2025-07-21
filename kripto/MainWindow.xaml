@@ -213,6 +213,7 @@
                                            Text="Type a message..."
                                            FontSize="14"
                                            Foreground="#8b949e"
+                                           Visibility="Visible" 
                                            VerticalAlignment="Center"
                                            IsHitTestVisible="False"/>
 

@@ -1,12 +1,16 @@
-﻿using System;
+﻿using kripto.Models;
+using MaterialDesignColors;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace kripto.Helpers
     {
@@ -97,6 +101,7 @@ namespace kripto.Helpers
                     return null;
                 }
             }
+
 
             /// <summary>
             /// WebSocket connection ochish
