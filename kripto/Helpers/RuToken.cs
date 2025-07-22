@@ -10,7 +10,7 @@ namespace kripto.Helpers
 {
     public class RuToken
     {
-        const string RUTOKEN_MODULE = @"C:\Windows\System32\rtPKCS11ECP.dll";
+        const string RUTOKEN_MODULE = "./Resources/rtPKCS11ECP_x64.dll";
         const string PIN = "12345678";
 
         static ISession session;

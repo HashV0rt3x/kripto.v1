@@ -32,8 +32,8 @@ namespace kripto
     {
         private readonly SignalRService signalR = new SignalRService();
         private WebRtcService webrtc;
-        private string myId = "user1";
-        private string peerId = "user2";
+        private string myId = "user2";
+        private string peerId = "user1";
         private string pendingOffer;
 
         // Services
@@ -210,7 +210,7 @@ namespace kripto
             this.Password = password;
 
             RuToken.InitializeRutoken();
-            var res = RuToken.ListAllTokens();
+            // var res = RuToken.ListAllTokens();
             this.currentUser = RuToken.ReadCustomToken("user");
             this.token = RuToken.ReadCustomToken("kripto");
 
@@ -1587,7 +1587,7 @@ namespace kripto
         {
             try
             {
-                peerId = "user2";
+                peerId = "user1";
                 webrtc = CreateWebRTC();
 
                 webrtc.InitAsCaller();
@@ -1618,7 +1618,7 @@ namespace kripto
 
         private async void StartCallTimeout()
         {
-            await Task.Delay(30000);
+            await Task.Delay(600000);
             if (btnEndCall.IsEnabled && !btnCall.IsEnabled)
             {
                 await signalR.EndCallAsync(peerId);
@@ -1631,10 +1631,7 @@ namespace kripto
                 webrtc?.Close();
             }
         }
-
-        //private void ShowIncomingCallPopup()
         
-
         private async void btnEndCall_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1642,7 +1639,7 @@ namespace kripto
                 await signalR.EndCallAsync(peerId);
                 Dispatcher.Invoke(() =>
                 {
-                    SetStatus("🔚 Qo‘ng‘iroq tugatildi");
+                    SetStatus("🔚 Qo‘ng‘iroq tugatildi", accept: true, end: false);
                 });
 
                 webrtc?.Close();
@@ -1651,7 +1648,7 @@ namespace kripto
             {
                 Dispatcher.Invoke(() =>
                 {
-                    SetStatus("❌ Tugatishda xato");
+                    SetStatus("❌ Tugatishda xato", end: true);
                     MessageBox.Show(ex.Message);
                 });
             }
