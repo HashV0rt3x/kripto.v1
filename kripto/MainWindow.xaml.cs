@@ -61,7 +61,7 @@ namespace kripto
             btnCall.IsEnabled = !btnCall.IsEnabled;
         }
 
-        private void SetStatus(string text, bool accept = false, bool end = false, bool reject = false)
+        private async Task SetStatus(string text, bool accept = false, bool end = false, bool reject = false)
         {
             CallStatusText.Text = text;
             btnCall.IsEnabled = accept;
@@ -77,33 +77,83 @@ namespace kripto
 
                 this.Title = "Kripto Messenger - Starting...";
 
-                Task.Run(async () => await signalR.ConnectAsync(myId));
+                Dispatcher.Invoke(async () => await signalR.ConnectAsync(myId));
 
                 signalR.OnIncomingCall = (from, offer) =>
                 {
                     peerId = from;
                     pendingOffer = offer;
-                    ShowIncomingCallPopup();
-                    Task.Run(() => SetStatus($"📞 Qo‘ng‘iroq kelmoqda: {from}", accept: true, reject: true));
+                    Dispatcher.Invoke(() =>
+                    {
+                        var popup = new CallWindow
+                        {
+                            Owner = this,
+                            Topmost = true,
+                        };
+
+                        popup.btnAccept.Click += async (_, __) =>
+                        {
+                            popup.Close();
+                            try
+                            {
+                                webrtc = CreateWebRTC();
+
+                                webrtc.InitAsReceiver();
+                                await webrtc.SetRemoteDescriptionAsync(pendingOffer, RTCSdpType.offer);
+                                var answer = await webrtc.CreateAnswerAsync();
+                                await signalR.AnswerCallAsync(peerId, answer);
+
+                                webrtc.StartAudio();
+                                await SetStatus("📞 Qo‘ng‘iroq qabul qilindi", end: true);
+                                ToggleCallButtons(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                await SetStatus("❌ Javob yuborilmadi");
+                                MessageBox.Show(ex.Message);
+                            }
+                        };
+
+                        popup.btnReject.Click += async (_, __) =>
+                        {
+                            popup.Close();
+                            try
+                            {
+                                await signalR.RejectCallAsync(peerId);
+                                await SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
+                                webrtc?.Close();
+                            }
+                            catch (Exception ex)
+                            {
+                                await SetStatus("❌ Rad qilishda xato");
+                                MessageBox.Show(ex.Message);
+                            }
+                            btnCall.IsEnabled = true;
+                            btnEndCall.IsEnabled = false;
+                        };
+
+                        popup.ShowDialog();
+                    });
+                    Dispatcher.Invoke(() => SetStatus($"📞 Qo‘ng‘iroq kelmoqda: {from}", accept: true, reject: true));
                 };
 
                 signalR.OnCallAnswered = async (from, answer) =>
                 {
                     await webrtc.SetRemoteDescriptionAsync(answer, RTCSdpType.answer);
                     webrtc.StartAudio();
-                    Task.Run(() => SetStatus("✅ Qarshi tomon javob berdi", end: true));
+                    await Dispatcher.Invoke(() => SetStatus("✅ Qarshi tomon javob berdi", end: true));
                 };
 
                 signalR.OnCallEnded = (fromConnId) =>
                 {
                     btnCall.IsEnabled = true;
-                    Task.Run(() => SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi"));
+                    Dispatcher.Invoke(() => SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi"));
                     webrtc?.Close();
                 };
 
                 signalR.OnCallRejected = (from) =>
                 {
-                    Task.Run(() => SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi"));
+                    Dispatcher.Invoke(() => SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi"));
                     webrtc?.Close();
                     btnCall.IsEnabled = true;
                     btnEndCall.IsEnabled = false;
@@ -268,7 +318,7 @@ namespace kripto
 
                         userApiService = new UserApiService(IpAddress,authtoken);
 
-                        Console.WriteLine(userApiService.GetAllUsersAsync);
+                        //Console.WriteLine(userApiService.GetAllUsersAsync);
                     }
                     catch (Exception tokenEx)
                     {
@@ -1528,12 +1578,12 @@ namespace kripto
                 var offer = await webrtc.CreateOfferAsync();
                 await signalR.CallUserAsync(peerId, offer);
 
-                SetStatus("📤 Qo‘ng‘iroq yuborildi...", end: true);
+                await SetStatus("📤 Qo‘ng‘iroq yuborildi...", end: true);
                 StartCallTimeout();
             }
             catch (Exception ex)
             {
-                SetStatus("❌ Qo‘ng‘iroq yuborilmadi", accept: true);
+                await SetStatus("❌ Qo‘ng‘iroq yuborilmadi", accept: true);
                 MessageBox.Show(ex.Message);
             }
         }
@@ -1556,77 +1606,29 @@ namespace kripto
             if (btnEndCall.IsEnabled && !btnCall.IsEnabled)
             {
                 await signalR.EndCallAsync(peerId);
-                await Task.Run(() =>
+                await Dispatcher.Invoke(async () =>
                 {
-                    SetStatus("⌛ Javob bo‘lmadi, avtomatik tugatildi");
+                    await SetStatus("⌛ Javob bo‘lmadi, avtomatik tugatildi");
                     btnEndCall.IsEnabled = false;
                 });
                 webrtc?.Close();
             }
         }
 
-        private void ShowIncomingCallPopup()
-        {
-            var popup = new CallWindow
-            {
-                Owner = this
-            };
-
-            popup.btnAccept.Click += async (_, __) =>
-            {
-                popup.Close();
-                try
-                {
-                    webrtc = CreateWebRTC();
-
-                    webrtc.InitAsReceiver();
-                    await webrtc.SetRemoteDescriptionAsync(pendingOffer, RTCSdpType.offer);
-                    var answer = await webrtc.CreateAnswerAsync();
-                    await signalR.AnswerCallAsync(peerId, answer);
-
-                    webrtc.StartAudio();
-                    SetStatus("📞 Qo‘ng‘iroq qabul qilindi", end: true);
-                    ToggleCallButtons(false);
-                }
-                catch (Exception ex)
-                {
-                    SetStatus("❌ Javob yuborilmadi");
-                    MessageBox.Show(ex.Message);
-                }
-            };
-
-            popup.btnReject.Click += async (_, __) =>
-            {
-                popup.Close();
-                try
-                {
-                    await signalR.RejectCallAsync(peerId);
-                    SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
-                    webrtc?.Close();
-                }
-                catch (Exception ex)
-                {
-                    SetStatus("❌ Rad qilishda xato");
-                    MessageBox.Show(ex.Message);
-                }
-                btnCall.IsEnabled = true;
-                btnEndCall.IsEnabled = false;
-            };
-
-            popup.ShowDialog();
-        }
+        //private void ShowIncomingCallPopup()
+        
 
         private async void btnEndCall_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 await signalR.EndCallAsync(peerId);
-                SetStatus("🔚 Qo‘ng‘iroq tugatildi");
+                await SetStatus("🔚 Qo‘ng‘iroq tugatildi");
                 webrtc?.Close();
             }
             catch (Exception ex)
             {
-                SetStatus("❌ Tugatishda xato");
+                await SetStatus("❌ Tugatishda xato");
                 MessageBox.Show(ex.Message);
             }
             btnCall.IsEnabled = true;
