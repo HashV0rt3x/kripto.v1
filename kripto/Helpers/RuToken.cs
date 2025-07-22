@@ -11,7 +11,7 @@ namespace kripto.Helpers
     public class RuToken
     {
         const string RUTOKEN_MODULE = "./Resources/rtPKCS11ECP_x64.dll";
-        const string PIN = "12345678";
+        static string PIN = string.Empty;
 
         static ISession session;
         static IPkcs11Library pkcs11Library;
@@ -19,10 +19,12 @@ namespace kripto.Helpers
         /// <summary>
         /// Rutoken ga ulanish va sessiya ochish
         /// </summary>
-        public static bool InitializeRutoken()
+        public static bool InitializeRutoken(string password)
         {
             try
             {
+                PIN = password;
+
                 Console.WriteLine("1️⃣ PKCS#11 kutubxonasini yuklash...");
 
                 pkcs11Library = new Pkcs11InteropFactories().Pkcs11LibraryFactory.LoadPkcs11Library(

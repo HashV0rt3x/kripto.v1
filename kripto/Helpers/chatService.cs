@@ -50,7 +50,7 @@ namespace kripto.Helpers
             /// <summary>
             /// Auth token olish
             /// </summary>
-            public async Task<string?> AuthenticateAsync(string password)
+            public async Task<string?> AuthenticateAsync(string username,string password)
             {
                 try
                 {
@@ -58,7 +58,7 @@ namespace kripto.Helpers
 
                     var loginRequest = new
                     {
-                        username = "admin",
+                        username = username,
                         password = password
                     };
 

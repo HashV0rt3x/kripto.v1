@@ -54,6 +54,7 @@ namespace kripto
 
         public string IpAddress { get; private set; } = string.Empty;
         public string Password { get; private set; } = string.Empty;
+        public string TokenPassword { get; private set; } = string.Empty;
 
         private void ToggleCallButtons(bool enable)
         {
@@ -115,7 +116,7 @@ namespace kripto
                             {
                                 Dispatcher.Invoke(() =>
                                 {
-                                    SetStatus("❌ Javob yuborilmadi");
+                                    SetStatus("❌ Javob yuborilmadi", accept: true);
                                     MessageBox.Show(ex.Message);
                                 });
                             }
@@ -134,7 +135,7 @@ namespace kripto
                                 }
                                 catch (Exception ex)
                                 {
-                                    SetStatus("❌ Rad qilishda xato");
+                                    SetStatus("❌ Rad qilishda xato", end: true);
                                     MessageBox.Show(ex.Message);
                                 }
                                 btnCall.IsEnabled = true;
@@ -159,7 +160,7 @@ namespace kripto
                     Dispatcher.Invoke(() =>
                     {
                         btnCall.IsEnabled = true;
-                        SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi");
+                        SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi", accept: true);
                         webrtc?.Close();
                     });
                 };
@@ -168,7 +169,7 @@ namespace kripto
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi");
+                        SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi", accept: true);
                         webrtc?.Close();
                         btnCall.IsEnabled = true;
                         btnEndCall.IsEnabled = false; 
@@ -209,10 +210,11 @@ namespace kripto
             this.IpAddress = ipAddress;
             this.Password = password;
 
-            RuToken.InitializeRutoken();
+            RuToken.InitializeRutoken(password);
             // var res = RuToken.ListAllTokens();
             this.currentUser = RuToken.ReadCustomToken("user");
             this.token = RuToken.ReadCustomToken("kripto");
+            TokenPassword = RuToken.ReadCustomToken("password");
 
 
             System.Diagnostics.Debug.WriteLine($"Connection info set: {ipAddress}, {password.Length} chars");
@@ -498,7 +500,7 @@ namespace kripto
                 }
 
                 // Authentication
-                string authenticated = await chatService.AuthenticateAsync(Password);
+                string authenticated = await chatService.AuthenticateAsync(currentUser,TokenPassword);
                 if (authenticated is null)
                 {
                     throw new Exception("Authentication failed - parol noto'g'ri bo'lishi mumkin");
