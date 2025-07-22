@@ -32,8 +32,8 @@ namespace kripto
     {
         private readonly SignalRService signalR = new SignalRService();
         private WebRtcService webrtc;
-        private string myId = "myid1";
-        private string peerId;
+        private string myId = "user1";
+        private string peerId = "user2";
         private string pendingOffer;
 
         // Services
@@ -61,7 +61,7 @@ namespace kripto
             btnCall.IsEnabled = !btnCall.IsEnabled;
         }
 
-        private async Task SetStatus(string text, bool accept = false, bool end = false, bool reject = false)
+        private void SetStatus(string text, bool accept = false, bool end = false, bool reject = false)
         {
             CallStatusText.Text = text;
             btnCall.IsEnabled = accept;
@@ -77,13 +77,13 @@ namespace kripto
 
                 this.Title = "Kripto Messenger - Starting...";
 
-                Dispatcher.Invoke(async () => await signalR.ConnectAsync(myId));
+                Task.Run(async () => await signalR.ConnectAsync(myId));
 
-                signalR.OnIncomingCall = (from, offer) =>
+                signalR.OnIncomingCall = async (from, offer) =>
                 {
                     peerId = from;
                     pendingOffer = offer;
-                    Dispatcher.Invoke(() =>
+                    await Dispatcher.InvokeAsync(() =>
                     {
                         var popup = new CallWindow
                         {
@@ -104,32 +104,42 @@ namespace kripto
                                 await signalR.AnswerCallAsync(peerId, answer);
 
                                 webrtc.StartAudio();
-                                await SetStatus("📞 Qo‘ng‘iroq qabul qilindi", end: true);
-                                ToggleCallButtons(false);
+
+                                Dispatcher.Invoke(() =>
+                                {
+                                    SetStatus("📞 Qo‘ng‘iroq qabul qilindi", end: true);
+                                    ToggleCallButtons(false);
+                                });
                             }
                             catch (Exception ex)
                             {
-                                await SetStatus("❌ Javob yuborilmadi");
-                                MessageBox.Show(ex.Message);
+                                Dispatcher.Invoke(() =>
+                                {
+                                    SetStatus("❌ Javob yuborilmadi");
+                                    MessageBox.Show(ex.Message);
+                                });
                             }
                         };
 
                         popup.btnReject.Click += async (_, __) =>
                         {
-                            popup.Close();
-                            try
+                            Dispatcher.Invoke(() =>
                             {
-                                await signalR.RejectCallAsync(peerId);
-                                await SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
-                                webrtc?.Close();
-                            }
-                            catch (Exception ex)
-                            {
-                                await SetStatus("❌ Rad qilishda xato");
-                                MessageBox.Show(ex.Message);
-                            }
-                            btnCall.IsEnabled = true;
-                            btnEndCall.IsEnabled = false;
+                                popup.Close();
+                                try
+                                {
+                                    Task.Run(async () => await signalR.RejectCallAsync(peerId));
+                                    SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
+                                    webrtc?.Close();
+                                }
+                                catch (Exception ex)
+                                {
+                                    SetStatus("❌ Rad qilishda xato");
+                                    MessageBox.Show(ex.Message);
+                                }
+                                btnCall.IsEnabled = true;
+                                btnEndCall.IsEnabled = false;
+                            });
                         };
 
                         popup.ShowDialog();
@@ -141,22 +151,28 @@ namespace kripto
                 {
                     await webrtc.SetRemoteDescriptionAsync(answer, RTCSdpType.answer);
                     webrtc.StartAudio();
-                    await Dispatcher.Invoke(() => SetStatus("✅ Qarshi tomon javob berdi", end: true));
+                    Dispatcher.Invoke(() => SetStatus("✅ Qarshi tomon javob berdi", end: true));
                 };
 
                 signalR.OnCallEnded = (fromConnId) =>
                 {
-                    btnCall.IsEnabled = true;
-                    Dispatcher.Invoke(() => SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi"));
-                    webrtc?.Close();
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnCall.IsEnabled = true;
+                        SetStatus("❌ Qarshi tomon qo‘ng‘iroqni yakunladi");
+                        webrtc?.Close();
+                    });
                 };
 
                 signalR.OnCallRejected = (from) =>
                 {
-                    Dispatcher.Invoke(() => SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi"));
-                    webrtc?.Close();
-                    btnCall.IsEnabled = true;
-                    btnEndCall.IsEnabled = false;
+                    Dispatcher.Invoke(() =>
+                    {
+                        SetStatus("🚫 Qarshi tomon qo‘ng‘iroqni rad etdi");
+                        webrtc?.Close();
+                        btnCall.IsEnabled = true;
+                        btnEndCall.IsEnabled = false; 
+                    });
                     //ToggleCallButtons(false);
                 };
 
@@ -1578,12 +1594,12 @@ namespace kripto
                 var offer = await webrtc.CreateOfferAsync();
                 await signalR.CallUserAsync(peerId, offer);
 
-                await SetStatus("📤 Qo‘ng‘iroq yuborildi...", end: true);
+                SetStatus("📤 Qo‘ng‘iroq yuborildi...", end: true);
                 StartCallTimeout();
             }
             catch (Exception ex)
             {
-                await SetStatus("❌ Qo‘ng‘iroq yuborilmadi", accept: true);
+                SetStatus("❌ Qo‘ng‘iroq yuborilmadi", accept: true);
                 MessageBox.Show(ex.Message);
             }
         }
@@ -1608,8 +1624,9 @@ namespace kripto
                 await signalR.EndCallAsync(peerId);
                 await Dispatcher.Invoke(async () =>
                 {
-                    await SetStatus("⌛ Javob bo‘lmadi, avtomatik tugatildi");
+                    SetStatus("⌛ Javob bo‘lmadi, avtomatik tugatildi");
                     btnEndCall.IsEnabled = false;
+                    btnCall.IsEnabled = true;
                 });
                 webrtc?.Close();
             }
@@ -1623,16 +1640,26 @@ namespace kripto
             try
             {
                 await signalR.EndCallAsync(peerId);
-                await SetStatus("🔚 Qo‘ng‘iroq tugatildi");
+                Dispatcher.Invoke(() =>
+                {
+                    SetStatus("🔚 Qo‘ng‘iroq tugatildi");
+                });
+
                 webrtc?.Close();
             }
             catch (Exception ex)
             {
-                await SetStatus("❌ Tugatishda xato");
-                MessageBox.Show(ex.Message);
+                Dispatcher.Invoke(() =>
+                {
+                    SetStatus("❌ Tugatishda xato");
+                    MessageBox.Show(ex.Message);
+                });
             }
-            btnCall.IsEnabled = true;
-            btnEndCall.IsEnabled = false;
+            Dispatcher.Invoke(() =>
+            {
+                btnCall.IsEnabled = true;
+                btnEndCall.IsEnabled = false;
+            });
         }
     }
 }
