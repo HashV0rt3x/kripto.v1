@@ -153,12 +153,30 @@
                                            FontSize="11"
                                            Foreground="#10b981"/>
                             </Border>
-                            <Button Background="Transparent"
+                            <TextBlock x:Name="CallStatusText"
+                                       Text="No active call"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Foreground="#8b949e"
+                                       Margin="0,0,12,0"/>
+                            <Button x:Name="btnCall"
+                                    Background="Gray"
                                     BorderThickness="0"
-                                    Width="32"
-                                    Height="32"
-                                    FontSize="16">
-                                <TextBlock Text="⋮" Foreground="#8b949e"/>
+                                    Width="52"
+                                    Height="26"
+                                    Foreground="Red"
+                                    FontSize="12" Click="btnCall_Click">
+                                CALL
+                            </Button>
+                            <Button x:Name="btnEndCall"
+                                    Background="Gray"
+                                    BorderThickness="0"
+                                    Width="48"
+                                    Height="26"
+                                    IsEnabled="False"
+                                    Foreground="Red"
+                                    FontSize="12" Click="btnEndCall_Click">
+                                END
                             </Button>
                         </StackPanel>
                     </DockPanel>
