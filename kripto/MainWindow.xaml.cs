@@ -1595,7 +1595,7 @@ namespace kripto
         {
             try
             {
-                selectedChatUser = "user1";
+                //selectedChatUser = "user1";
                 webrtc = CreateWebRTC();
 
                 webrtc.InitAsCaller();
