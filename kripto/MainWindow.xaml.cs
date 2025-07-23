@@ -185,7 +185,7 @@ namespace kripto
 
                 signalR.OnIncomingCall = async (from, offer) =>
                 {
-                    selectedChatUser = from;
+                    //selectedChatUser = from;
                     pendingOffer = offer;
                     await Dispatcher.InvokeAsync(() =>
                     {
@@ -205,7 +205,7 @@ namespace kripto
                                 webrtc.InitAsReceiver();
                                 await webrtc.SetRemoteDescriptionAsync(pendingOffer, RTCSdpType.offer);
                                 var answer = await webrtc.CreateAnswerAsync();
-                                await signalR.AnswerCallAsync(selectedChatUser, answer);
+                                await signalR.AnswerCallAsync(from, answer);
 
                                 webrtc.StartAudio();
 
@@ -231,7 +231,7 @@ namespace kripto
                                 popup.Close();
                                 try
                                 {
-                                    Task.Run(async () => await signalR.RejectCallAsync(selectedChatUser));
+                                    Task.Run(async () => await signalR.RejectCallAsync(from));
                                     SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
                                     webrtc?.Close();
                                 }
