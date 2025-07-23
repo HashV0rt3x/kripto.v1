@@ -1,4 +1,5 @@
-﻿using kripto.Helpers;
+﻿using Backup.Service.Services;
+using kripto.Helpers;
 using kripto.Models;
 using kripto.Security;
 using kripto.Services;
@@ -1025,7 +1026,7 @@ namespace kripto
                 {
                     foreach (var msg in messages)
                     {
-                        AddMessageToChat(msg.Text,  msg.FromUser, msg.FromUser == currentUser);
+                        AddMessageToChat(AesEncryptionService.Decrypt(msg.Text, CredentialsManager.GetInstance().Token),  msg.FromUser, msg.FromUser == currentUser);
                     }
                 }
                 //}
@@ -1296,7 +1297,7 @@ namespace kripto
                 }
 
                 // O'z xabarimizni UI ga qo'shish
-                AddMessageToChat(messageContent, currentUser, true);
+                // AddMessageToChat(messageContent, currentUser, true);
 
                 // Chat history'ga qo'shish
                 AddToChatHistory(selectedChatUser, messageContent, false, DateTime.Now);
