@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Windows.Storage.Streams;
 
 namespace kripto.Helpers
 {
@@ -230,6 +231,7 @@ namespace kripto.Helpers
                             {
                                 case "message":
                                 case "new_message":
+                                case "message_sent":
                                 case "send_message":
                                     HandleIncomingChatMessage(messageObj);
                                     break;
@@ -268,7 +270,7 @@ namespace kripto.Helpers
         /// <summary>
         /// Chat xabarini handle qilish
         /// </summary>
-        private void HandleIncomingChatMessage(JsonElement messageObj)
+        private async void HandleIncomingChatMessage(JsonElement messageObj)
         {
             try
             {
@@ -282,6 +284,30 @@ namespace kripto.Helpers
 
                     if (dataElement.TryGetProperty("text", out var textElement))
                         messageText = textElement.GetString() ?? "";
+
+                    if (dataElement.TryGetProperty("fileName", out var fileNameElement) && dataElement.TryGetProperty("fileContent", out var fileContent))
+                    {
+                        string fileName = fileNameElement.GetString() ?? "unknown_file";
+                        messageText = $"📎 Fayl: {fileName}";
+                        string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
+                        await File.WriteAllBytesAsync(savePath, fileContent.GetBytesFromBase64());
+                        MessageBox.Show($"Fayl saqlandi: {savePath}", "Fayl saqlandi", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    /*
+                    if (result.MessageType == WebSocketMessageType.Text)
+                    {
+                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        var fileMessage = JsonSerializer.Deserialize<FileMessageDto>(json);
+
+                        if (fileMessage?.FileContent != null)
+                        {
+                            string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                                                           fileMessage.FileName);
+                            await File.WriteAllBytesAsync(savePath, fileMessage.FileContent);
+                            MessageBox.Show($"File saved to: {savePath}");
+                        }
+                    }
+                    */
 
                     if (!string.IsNullOrEmpty(fromUser) && !string.IsNullOrEmpty(messageText))
                     {
@@ -412,7 +438,7 @@ namespace kripto.Helpers
                 if (string.IsNullOrWhiteSpace(dialogFileName))
                     return false;
 
-                //var fileName = Path.GetFileName(dialogFileName);
+                var fileName = Path.GetFileName(dialogFileName);
                 var fileBytes = await File.ReadAllBytesAsync(dialogFileName);
 
                 var message = new
@@ -423,8 +449,8 @@ namespace kripto.Helpers
                     {
                         fromUser = Username,
                         toUser = toUser,
-                        fileName = dialogFileName,
-                        fileHash = fileBytes,
+                        fileName = fileName,
+                        fileContent = fileBytes,
                         messageType = "file",
                         timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
