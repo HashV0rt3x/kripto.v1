@@ -209,7 +209,7 @@ namespace kripto
         /// <summary>
         /// Connection ma'lumotlarini o'rnatish
         /// </summary>
-        public void SetConnectionInfo(string ipAddress, string password)
+        public async void SetConnectionInfo(string ipAddress, string password)
         {
             this.IpAddress = ipAddress;
             this.Password = password;
@@ -226,7 +226,7 @@ namespace kripto
 
 
             // UserApiService'ni yaratish
-            InitializeUserApiService();
+            await InitializeUserApiService();
         }
 
         /// <summary>
