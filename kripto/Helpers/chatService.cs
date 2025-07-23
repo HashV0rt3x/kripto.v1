@@ -283,7 +283,7 @@ namespace kripto.Helpers
                     if (dataElement.TryGetProperty("fromUser", out var fromElement))
                         fromUser = fromElement.GetString() ?? "";
 
-                    if (dataElement.TryGetProperty("text", out var textElement))
+                    if (dataElement.TryGetProperty("text", out var textElement) && !string.IsNullOrEmpty(textElement.GetString()))
                         messageText = AesEncryptionService.Decrypt(textElement.GetString(), CredentialsManager.GetInstance().Token) ?? "";
 
                     if (dataElement.TryGetProperty("messageType", out var messageTypeElement) && messageTypeElement.GetString() == "file")
