@@ -36,8 +36,8 @@ namespace kripto
     {
         private readonly SignalRService signalR = new SignalRService();
         private WebRtcService webrtc;
-        private string myId = "user2";
-        private string peerId = "user1";
+        //private string myId = "user2";
+        //private string peerId = "user1";
         private string pendingOffer;
 
         // Services
@@ -82,11 +82,11 @@ namespace kripto
 
                 this.Title = "Kripto Messenger - Starting...";
 
-                Task.Run(async () => await signalR.ConnectAsync(myId));
+                Task.Run(async () => await signalR.ConnectAsync(currentUser));
 
                 signalR.OnIncomingCall = async (from, offer) =>
                 {
-                    peerId = from;
+                    selectedChatUser = from;
                     pendingOffer = offer;
                     await Dispatcher.InvokeAsync(() =>
                     {
@@ -106,7 +106,7 @@ namespace kripto
                                 webrtc.InitAsReceiver();
                                 await webrtc.SetRemoteDescriptionAsync(pendingOffer, RTCSdpType.offer);
                                 var answer = await webrtc.CreateAnswerAsync();
-                                await signalR.AnswerCallAsync(peerId, answer);
+                                await signalR.AnswerCallAsync(selectedChatUser, answer);
 
                                 webrtc.StartAudio();
 
@@ -133,7 +133,7 @@ namespace kripto
                                 popup.Close();
                                 try
                                 {
-                                    Task.Run(async () => await signalR.RejectCallAsync(peerId));
+                                    Task.Run(async () => await signalR.RejectCallAsync(selectedChatUser));
                                     SetStatus("⛔ Siz qo‘ng‘iroqni rad qildingiz");
                                     webrtc?.Close();
                                 }
@@ -1595,12 +1595,12 @@ namespace kripto
         {
             try
             {
-                peerId = "user1";
+                selectedChatUser = "user1";
                 webrtc = CreateWebRTC();
 
                 webrtc.InitAsCaller();
                 var offer = await webrtc.CreateOfferAsync();
-                await signalR.CallUserAsync(peerId, offer);
+                await signalR.CallUserAsync(selectedChatUser, offer);
 
                 SetStatus("📤 Qo‘ng‘iroq yuborildi...", end: true);
                 StartCallTimeout();
@@ -1618,7 +1618,7 @@ namespace kripto
 
             rtc.OnIceCandidateReady = async (ice) =>
             {
-                await signalR.SendIceCandidateAsync(peerId, ice);
+                await signalR.SendIceCandidateAsync(selectedChatUser, ice);
             };
 
             return rtc;
@@ -1629,7 +1629,7 @@ namespace kripto
             await Task.Delay(600000);
             if (btnEndCall.IsEnabled && !btnCall.IsEnabled)
             {
-                await signalR.EndCallAsync(peerId);
+                await signalR.EndCallAsync(selectedChatUser);
                 await Dispatcher.Invoke(async () =>
                 {
                     SetStatus("⌛ Javob bo‘lmadi, avtomatik tugatildi");
@@ -1644,7 +1644,7 @@ namespace kripto
         {
             try
             {
-                await signalR.EndCallAsync(peerId);
+                await signalR.EndCallAsync(selectedChatUser);
                 Dispatcher.Invoke(() =>
                 {
                     SetStatus("🔚 Qo‘ng‘iroq tugatildi", accept: true, end: false);
