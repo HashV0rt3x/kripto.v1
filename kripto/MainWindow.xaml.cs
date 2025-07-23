@@ -274,7 +274,7 @@ namespace kripto
                 if (!string.IsNullOrEmpty(Password))
                 {
                     System.Diagnostics.Debug.WriteLine($"RuToken ishga tushirilmoqda...");
-                    await InitializeRuTokenAsync();
+                    //await InitializeRuTokenAsync();
                 }
                 else
                 {
@@ -1429,49 +1429,49 @@ namespace kripto
             });
         }
 
-        private async Task InitializeRuTokenAsync()
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("🔍 RuToken tekshirilmoqda...");
+        //private async Task InitializeRuTokenAsync()
+        //{
+        //    try
+        //    {
+        //        System.Diagnostics.Debug.WriteLine("🔍 RuToken tekshirilmoqda...");
 
-                if (string.IsNullOrEmpty(Password))
-                {
-                    System.Diagnostics.Debug.WriteLine("⚠️ Password bo'sh, RuToken ishga tushirilmaydi");
-                    await SetFallbackUserAsync();
-                    return;
-                }
+        //        if (string.IsNullOrEmpty(Password))
+        //        {
+        //            System.Diagnostics.Debug.WriteLine("⚠️ Password bo'sh, RuToken ishga tushirilmaydi");
+        //            await SetFallbackUserAsync();
+        //            return;
+        //        }
 
-                rutokenHelper = new RutokenHelper();
-                bool initialized = await Task.Run(() =>
-                {
-                    try
-                    {
-                        return rutokenHelper.Initialize(Password);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"RuToken init xatolik: {ex.Message}");
-                        return false;
-                    }
-                });
+        //        rutokenHelper = new RutokenHelper();
+        //        bool initialized = await Task.Run(() =>
+        //        {
+        //            try
+        //            {
+        //                return rutokenHelper.Initialize(Password);
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                System.Diagnostics.Debug.WriteLine($"RuToken init xatolik: {ex.Message}");
+        //                return false;
+        //            }
+        //        });
 
-                if (initialized)
-                {
-                    System.Diagnostics.Debug.WriteLine("✅ RuToken muvaffaqiyatli ishga tushirildi");
-                    await LoadUserFromRuTokenAsync();
-                }
-                else
-                {
-                    throw new Exception("RuToken initialization failed");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ RuToken init failed: {ex.Message}");
-                await SetFallbackUserAsync();
-            }
-        }
+        //        if (initialized)
+        //        {
+        //            System.Diagnostics.Debug.WriteLine("✅ RuToken muvaffaqiyatli ishga tushirildi");
+        //            await LoadUserFromRuTokenAsync();
+        //        }
+        //        else
+        //        {
+        //            throw new Exception("RuToken initialization failed");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        System.Diagnostics.Debug.WriteLine($"❌ RuToken init failed: {ex.Message}");
+        //        await SetFallbackUserAsync();
+        //    }
+        //}
 
         private async Task LoadUserFromRuTokenAsync()
         {
