@@ -20,7 +20,7 @@ namespace kripto.Helpers
         // Auth token ni saqlash uchun
 
         // Chat history ni Dictionary<string,string> format da olish
-        public static async Task<Dictionary<string, string>?> GetHistoryAsync(string targetUser,string authToken)
+        public static async Task<List<ChatMessageDto>> GetHistoryAsync(string targetUser,string authToken)
         {
             try
             {
@@ -30,7 +30,6 @@ namespace kripto.Helpers
                 {
                     if (string.IsNullOrEmpty(AuthToken))
                     {
-                         
                         Console.WriteLine("❌ Auth token olishda xatolik");
                         return null;
                     }
@@ -60,18 +59,18 @@ namespace kripto.Helpers
                     if (apiResponse?.Success == true && apiResponse.Data != null)
                     {
                         // ChatResponseDto dan Dictionary ga o'zgartirish
-                        var result = new Dictionary<string, string>();
-                        
-                        foreach (var message in apiResponse.Data)
-                        {
-                            // Message ID ni key, Text ni value sifatida
-                            if (!string.IsNullOrEmpty(message.Id) && !string.IsNullOrEmpty(message.Text))
-                            {
-                                result[message.ToUser] = message.Text;
-                            }
-                        }
+                        //var result = new Dictionary<string, string>();
 
-                        return result;
+                        //foreach (var message in apiResponse.Data)
+                        //{
+                        //    // Message ID ni key, Text ni value sifatida
+                        //    if (!string.IsNullOrEmpty(message.Id) && !string.IsNullOrEmpty(message.Text))
+                        //    {
+                        //        result[message.ToUser] = message.Text;
+                        //    }
+                        //}
+
+                        return apiResponse.Data;
                     }
                 }
                 else

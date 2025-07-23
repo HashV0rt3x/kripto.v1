@@ -8,8 +8,8 @@
         WindowStyle="None"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#0d1117"
-        Foreground="White"
+        Background="LightGray"
+        Foreground="Black"
         Title="Call" Height="160" Width="200">
     <Grid>
         <Grid.RowDefinitions>
@@ -17,7 +17,9 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock HorizontalAlignment="Center"
+        <TextBlock FontWeight="Bold"
+                   FontSize="22"
+                   HorizontalAlignment="Center"
                    VerticalAlignment="Center">
             JOHN DOE
         </TextBlock>

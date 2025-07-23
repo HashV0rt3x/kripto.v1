@@ -210,16 +210,18 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- File Upload Button -->
-                        <Button Grid.Column="0"
+                        <Button x:Name="btnFileUpload"
+                                Grid.Column="0"
                                 Background="#238636"
                                 BorderThickness="0"
                                 Foreground="White"
                                 Width="44"
                                 Height="44"
                                 Margin="0,0,12,0"
-                                
-                                FontSize="16">
-                            <TextBlock Text="📎"/>
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                FontSize="14" Click="btnFileUpload_Click">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="📎"/>
                         </Button>
 
                         <!-- Message Input Container -->

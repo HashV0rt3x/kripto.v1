@@ -4,13 +4,17 @@ using kripto.Security;
 using kripto.Services;
 using kripto.Windows;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Win32;
 using Org.BouncyCastle.Asn1.Cmp;
 using SIPSorcery.Net;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.IO;
 using System.Linq;
+using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -1022,7 +1026,7 @@ namespace kripto
 
                     foreach (var msg in messages)
                     {
-                        AddMessageToChat(msg.Value,  userName, msg.Key == currentUser ? true : false);
+                        AddMessageToChat(msg.Text,  msg.FromUser, msg.FromUser == currentUser);
                     }
                 //}
 
@@ -1130,25 +1134,21 @@ namespace kripto
         /// </summary>
         private void UpdateUIState()
         {
-            try
+            Dispatcher.Invoke(() =>
             {
-                bool isConnected = chatService?.IsConnected == true;
-                bool hasSelectedUser = !string.IsNullOrEmpty(selectedChatUser);
-
-                if (SendButton != null)
+                try
                 {
-                    SendButton.IsEnabled = hasSelectedUser; // Offline'da ham yozish mumkin
-                }
+                    bool isConnected = chatService?.IsConnected == true;
+                    bool hasSelectedUser = !string.IsNullOrEmpty(selectedChatUser);
 
-                if (MessageTextBox != null)
-                {
-                    MessageTextBox.IsEnabled = hasSelectedUser;
+                    SendButton.IsEnabled = true; // Offline'da ham yozish mumkin
+                    MessageTextBox.IsEnabled = true;
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"UpdateUIState xatolik: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"UpdateUIState xatolik: {ex.Message}");
+                }
+            });
         }
 
         private void AddWelcomeMessage()
@@ -1362,68 +1362,71 @@ namespace kripto
 
         private void AddMessageToChat(string message, string sender, bool isOwnMessage)
         {
-            try
+            Dispatcher.Invoke(() =>
             {
-                if (MessagesPanel == null) return;
-
-                var messageContainer = new Border
+                try
                 {
-                    Background = new SolidColorBrush(isOwnMessage ?
-                        Color.FromRgb(35, 134, 54) : Color.FromRgb(33, 38, 45)),
-                    CornerRadius = new CornerRadius(12),
-                    Padding = new Thickness(16, 12, 16, 12),
-                    Margin = new Thickness(isOwnMessage ? 50 : 0, 4, isOwnMessage ? 0 : 50, 4),
-                    HorizontalAlignment = isOwnMessage ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                    MaxWidth = 400
-                };
+                    if (MessagesPanel == null) return;
 
-                var messageStack = new StackPanel();
-
-                // Sender name (faqat boshqa userlar uchun)
-                if (!isOwnMessage)
-                {
-                    var senderText = new TextBlock
+                    var messageContainer = new Border
                     {
-                        Text = sender,
-                        FontSize = 12,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
-                        Margin = new Thickness(0, 0, 0, 4)
+                        Background = new SolidColorBrush(isOwnMessage ?
+                            Color.FromRgb(35, 134, 54) : Color.FromRgb(33, 38, 45)),
+                        CornerRadius = new CornerRadius(12),
+                        Padding = new Thickness(14, 8, 14, 8),
+                        Margin = new Thickness(isOwnMessage ? 50 : 5, 4, isOwnMessage ? 5 : 50, 4),
+                        HorizontalAlignment = isOwnMessage ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                        MaxWidth = 400
                     };
-                    messageStack.Children.Add(senderText);
+
+                    var messageStack = new StackPanel();
+
+                    // Sender name (faqat boshqa userlar uchun)
+                    if (!isOwnMessage)
+                    {
+                        var senderText = new TextBlock
+                        {
+                            Text = sender,
+                            FontSize = 12,
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
+                            Margin = new Thickness(0, 0, 0, 4)
+                        };
+                        messageStack.Children.Add(senderText);
+                    }
+
+                    // Message text
+                    var messageText = new TextBlock
+                    {
+                        Text = message,
+                        FontSize = 14,
+                        Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252)),
+                        TextWrapping = TextWrapping.Wrap
+                    };
+
+                    // Time stamp
+                    var timeText = new TextBlock
+                    {
+                        Text = DateTime.Now.ToString("HH:mm"),
+                        FontSize = 11,
+                        Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        Margin = new Thickness(0, 4, 0, 0)
+                    };
+
+                    messageStack.Children.Add(messageText);
+                    messageStack.Children.Add(timeText);
+
+                    messageContainer.Child = messageStack;
+                    MessagesPanel.Children.Add(messageContainer);
+
+                    System.Diagnostics.Debug.WriteLine($"Xabar qo'shildi: {sender} - {message}");
                 }
-
-                // Message text
-                var messageText = new TextBlock
+                catch (Exception ex)
                 {
-                    Text = message,
-                    FontSize = 14,
-                    Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252)),
-                    TextWrapping = TextWrapping.Wrap
-                };
-
-                // Time stamp
-                var timeText = new TextBlock
-                {
-                    Text = DateTime.Now.ToString("HH:mm"),
-                    FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Margin = new Thickness(0, 4, 0, 0)
-                };
-
-                messageStack.Children.Add(messageText);
-                messageStack.Children.Add(timeText);
-
-                messageContainer.Child = messageStack;
-                MessagesPanel.Children.Add(messageContainer);
-
-                System.Diagnostics.Debug.WriteLine($"Xabar qo'shildi: {sender} - {message}");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"AddMessageToChat xatolik: {ex.Message}");
-            }
+                    System.Diagnostics.Debug.WriteLine($"AddMessageToChat xatolik: {ex.Message}");
+                }
+            });
         }
 
         private async Task InitializeRuTokenAsync()
@@ -1659,6 +1662,16 @@ namespace kripto
                 btnCall.IsEnabled = true;
                 btnEndCall.IsEnabled = false;
             });
+        }
+
+        private async void btnFileUpload_Click(object sender, RoutedEventArgs e)
+        {
+            var fileDialog = new OpenFileDialog();
+            if (fileDialog.ShowDialog() == true)
+            {
+                var result = await chatService.SendFileAsync(selectedChatUser, fileDialog.FileName);
+            }
+            AddMessageToChat($"{fileDialog.FileName} fayli jo'natildi!", currentUser, true);
         }
     }
 }
