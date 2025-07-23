@@ -286,14 +286,18 @@ namespace kripto.Helpers
                     if (dataElement.TryGetProperty("text", out var textElement))
                         messageText = AesEncryptionService.Decrypt(textElement.GetString(), CredentialsManager.GetInstance().Token) ?? "";
 
-                    if (dataElement.TryGetProperty("fileName", out var fileNameElement) && dataElement.TryGetProperty("fileContent", out var fileContent))
+                    if (dataElement.TryGetProperty("messageType", out var messageTypeElement) && messageTypeElement.GetString() == "file")
                     {
-                        string fileName = fileNameElement.GetString() ?? "unknown_file";
-                        messageText = $"📎 Fayl: {fileName}";
-                        string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
-                        await File.WriteAllBytesAsync(savePath, fileContent.GetBytesFromBase64());
-                        MessageBox.Show($"Fayl saqlandi: {savePath}", "Fayl saqlandi", MessageBoxButton.OK, MessageBoxImage.Information);
+                        if (dataElement.TryGetProperty("fileName", out var fileNameElement) && dataElement.TryGetProperty("fileContent", out var fileContent))
+                        {
+                            string fileName = fileNameElement.GetString() ?? "unknown_file";
+                            messageText = $"📎 Fayl: {fileName}";
+                            string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
+                            await File.WriteAllBytesAsync(savePath, fileContent.GetBytesFromBase64());
+                            MessageBox.Show($"Fayl saqlandi: {savePath}", "Fayl saqlandi", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
                     }
+
                     /*
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
