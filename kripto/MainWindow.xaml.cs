@@ -514,7 +514,7 @@ namespace kripto
 
                 //chatHistoryService = new ChatHistoryService(authtoken);
 
-                var his =await ChatHistoryService.GetHistoryAsync(targetUser: "user1",authtoken);
+                //var his =await ChatHistoryService.GetHistoryAsync(targetUser: "user1",authtoken);
 
                 // Connection
                 bool connected = await chatService.ConnectAsync();
@@ -1022,12 +1022,15 @@ namespace kripto
                 // Agar ushbu user bilan history bo'lsa, yuklash
                 //if (chatHistory.ContainsKey(userName))
                 //{
-                    var messages = await ChatHistoryService.GetHistoryAsync(userName, authtoken);
-
+                ChatHistoryService.SERVER_IP = IpAddress;
+                var messages = await ChatHistoryService.GetHistoryAsync(userName, authtoken);
+                if (messages != null && messages.Count > 0)
+                {
                     foreach (var msg in messages)
                     {
                         AddMessageToChat(msg.Text,  msg.FromUser, msg.FromUser == currentUser);
                     }
+                }
                 //}
 
                 // Scroll pastga

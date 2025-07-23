@@ -9,7 +9,7 @@ namespace kripto.Helpers
     public class ChatHistoryService
     {
         private static readonly HttpClient httpClient = new HttpClient();
-        private static readonly string SERVER_IP = "37.27.216.90";
+        public static string SERVER_IP = "37.27.216.90";
         private static readonly string SERVER_PORT = "8099";
 
         public static string? AuthToken { get; set; }
