@@ -1,4 +1,5 @@
-﻿using kripto.Models;
+﻿using Backup.Service.Services;
+using kripto.Models;
 using MaterialDesignColors;
 using System;
 using System.Collections.Generic;
@@ -399,7 +400,7 @@ namespace kripto.Helpers
                     {
                         fromUser = Username,
                         toUser = toUser,
-                        text = messageText.Trim(),
+                        text = AesEncryptionService.Encrypt(messageText.Trim()),
                         messageType = "text",
                         timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
