@@ -60,12 +60,6 @@ namespace kripto
         public string Password { get; private set; } = string.Empty;
         public string TokenPassword { get; private set; } = string.Empty;
 
-        private void ToggleCallButtons(bool enable)
-        {
-            btnEndCall.IsEnabled = !btnEndCall.IsEnabled;
-            btnCall.IsEnabled = !btnCall.IsEnabled;
-        }
-
         private void SetStatus(string text, bool accept = false, bool end = false, bool reject = false)
         {
             CallStatusText.Text = text;
@@ -218,7 +212,6 @@ namespace kripto
                                 Dispatcher.Invoke(() =>
                                 {
                                     SetStatus("📞 Qo‘ng‘iroq qabul qilindi", end: true);
-                                    ToggleCallButtons(false);
                                 });
                             }
                             catch (Exception ex)
