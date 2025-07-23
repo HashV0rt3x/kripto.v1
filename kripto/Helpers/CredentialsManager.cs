@@ -5,6 +5,7 @@ public class CredentialsManager
     private static CredentialsManager? instance;
 
     public string? Token { get; set; }
+    public string? CurrentUser { get; set; }
 
     private CredentialsManager() { }
 

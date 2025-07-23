@@ -104,10 +104,14 @@ namespace kripto
             this.IpAddress = ipAddress;
             this.Password = password;
 
+            var credentialsManager = CredentialsManager.GetInstance();
+
             RuToken.InitializeRutoken(password);
             // var res = RuToken.ListAllTokens();
             this.currentUser = RuToken.ReadCustomToken("user");
+            credentialsManager.CurrentUser = this.currentUser;
             this.token = RuToken.ReadCustomToken("kripto");
+            credentialsManager.Token = this.token;
             TokenPassword = RuToken.ReadCustomToken("password");
 
 

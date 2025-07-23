@@ -284,7 +284,7 @@ namespace kripto.Helpers
                         fromUser = fromElement.GetString() ?? "";
 
                     if (dataElement.TryGetProperty("text", out var textElement))
-                        messageText = textElement.GetString() ?? "";
+                        messageText = AesEncryptionService.Decrypt(textElement.GetString(), CredentialsManager.GetInstance().Token) ?? "";
 
                     if (dataElement.TryGetProperty("fileName", out var fileNameElement) && dataElement.TryGetProperty("fileContent", out var fileContent))
                     {
@@ -400,7 +400,7 @@ namespace kripto.Helpers
                     {
                         fromUser = Username,
                         toUser = toUser,
-                        text = AesEncryptionService.Encrypt(messageText.Trim()),
+                        text = AesEncryptionService.Encrypt(messageText.Trim(), CredentialsManager.GetInstance().Token),
                         messageType = "text",
                         timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
